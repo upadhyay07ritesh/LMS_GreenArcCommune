@@ -35,7 +35,9 @@ app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
-
+app.get('/', (req, res) => {
+  res.send('Backend server is live and running!');
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
