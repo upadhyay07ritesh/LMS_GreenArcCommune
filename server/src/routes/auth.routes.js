@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { signup, login, me, logout, requestPasswordResetOtp, verifyPasswordResetOtp, resetPasswordWithOtp } from '../controllers/authController.js';
+import { signup, login, me, logout, requestPasswordResetOtp, verifyOtp, resetPassword } from '../controllers/authController.js';
 import { protect } from '../middlewares/auth.js';
 import { runValidation } from '../middlewares/validate.js';
 
@@ -27,16 +27,22 @@ router.post(
 
 router.post(
   '/forgot-password/verify-otp',
-  [body('email').isEmail(), body('otp').isLength({ min: 4 })],
+  [
+    body('email').isEmail(),
+    body('otp').isLength({ min: 6, max: 6 }).isNumeric()
+  ],
   runValidation,
-  verifyPasswordResetOtp
+  verifyOtp
 );
 
 router.post(
   '/forgot-password/reset',
-  [body('email').isEmail(), body('otp').isLength({ min: 4 }), body('password').isLength({ min: 6 })],
+  [
+    body('resetToken').notEmpty(),
+    body('newPassword').isLength({ min: 6 })
+  ],
   runValidation,
-  resetPasswordWithOtp
+  resetPassword
 );
 
 export default router;

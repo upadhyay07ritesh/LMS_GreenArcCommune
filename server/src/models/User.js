@@ -11,9 +11,13 @@ const userSchema = new mongoose.Schema(
     status: { type: String, enum: ['active', 'banned'], default: 'active' },
     avatar: { type: String }, // URL to profile image
     emailVerified: { type: Boolean, default: false },
-    // OTP reset fields
+    // Password reset fields
     resetOtpHash: { type: String, select: false },
-    resetOtpExpires: { type: Date }
+    resetOtpExpires: { type: Date },
+    passwordResetToken: { type: String, select: false },
+    passwordResetExpires: { type: Date },
+    passwordHistory: [{ type: String, select: false }], // Store hashed passwords
+    lastPasswordChange: { type: Date, default: Date.now }
   },
   { timestamps: true }
 );

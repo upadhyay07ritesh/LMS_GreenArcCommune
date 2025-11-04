@@ -1,26 +1,55 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import api from '../../api/axios.js';
-import { toast } from 'react-toastify';
-import { HiArrowLeft, HiLockClosed } from 'react-icons/hi2';
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import api from "../../api/axios.js";
+import { toast } from "react-toastify";
+import { HiArrowLeft, HiLockClosed } from "react-icons/hi2";
 
 export default function ForgotPassword() {
   const [step, setStep] = useState(1); // 1: request OTP, 2: verify OTP, 3: reset password
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [newPassword, setNewPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [resetToken, setResetToken] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
+
+  const startResendTimer = () => {
+    setResendTimer(60);
+    const timer = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleRequestOTP = async (e) => {
     e.preventDefault();
+    if (!email.includes('@')) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
     setLoading(true);
     try {
-      await api.post('/auth/forgot-password/request-otp', { email });
-      toast.success('OTP sent to your email');
+      await api.post("/auth/forgot-password/request-otp", { email });
+      toast.success("OTP sent to your email");
       setStep(2);
+      startResendTimer();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to send OTP');
+      const message = error.response?.data?.message;
+      if (error.response?.status === 429) {
+        // Rate limit error
+        const retryAfter = error.response.data.retryAfter || 60;
+        setResendTimer(retryAfter);
+        toast.error(`Please wait ${retryAfter} seconds before requesting another OTP`);
+      } else {
+        toast.error(message || "Failed to send OTP");
+      }
     } finally {
       setLoading(false);
     }
@@ -28,13 +57,23 @@ export default function ForgotPassword() {
 
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
+    if (otp.length !== 6 || !/^\d+$/.test(otp)) {
+      toast.error("Please enter a valid 6-digit OTP");
+      return;
+    }
     setLoading(true);
     try {
-      await api.post('/auth/forgot-password/verify-otp', { email, otp });
-      toast.success('OTP verified');
+      const response = await api.post("/auth/forgot-password/verify-otp", { email, otp });
+      setResetToken(response.data.resetToken);
+      toast.success("OTP verified successfully");
       setStep(3);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Invalid OTP');
+      const message = error.response?.data?.message;
+      if (error.response?.status === 400) {
+        toast.error(message || "Invalid or expired OTP");
+      } else {
+        toast.error(message || "Verification failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -43,18 +82,22 @@ export default function ForgotPassword() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error("Password must be at least 6 characters");
       return;
     }
     setLoading(true);
     try {
-      await api.post('/auth/forgot-password/reset', { email, otp, password: newPassword });
-      toast.success('Password reset successful! Please login.');
+      await api.post("/auth/forgot-password/reset", { 
+        resetToken,
+        newPassword
+      });
+      toast.success("Password reset successful! Please login.");
       setTimeout(() => {
-        window.location.href = '/login';
+        window.location.href = "/login";
       }, 1500);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to reset password');
+      const message = error.response?.data?.message;
+      toast.error(message || "Failed to reset password");
     } finally {
       setLoading(false);
     }
@@ -73,14 +116,14 @@ export default function ForgotPassword() {
             <HiLockClosed className="w-8 h-8 text-primary-600 dark:text-primary-400" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-            {step === 1 && 'Forgot Password?'}
-            {step === 2 && 'Enter OTP'}
-            {step === 3 && 'Reset Password'}
+            {step === 1 && "Forgot Password?"}
+            {step === 2 && "Enter OTP"}
+            {step === 3 && "Reset Password"}
           </h2>
           <p className="text-slate-600 dark:text-slate-400">
-            {step === 1 && 'Enter your email to receive a reset code'}
-            {step === 2 && 'Check your email for the OTP'}
-            {step === 3 && 'Enter your new password'}
+            {step === 1 && "Enter your email to receive a reset code"}
+            {step === 2 && "Check your email for the OTP"}
+            {step === 3 && "Enter your new password"}
           </p>
         </div>
 
@@ -97,8 +140,12 @@ export default function ForgotPassword() {
                 placeholder="your.email@example.com"
               />
             </div>
-            <button type="submit" className="btn btn-primary w-full" disabled={loading}>
-              {loading ? 'Sending...' : 'Send OTP'}
+            <button
+              type="submit"
+              className="btn btn-primary w-full"
+              disabled={loading}
+            >
+              {loading ? "Sending..." : "Send OTP"}
             </button>
           </form>
         )}
@@ -111,7 +158,9 @@ export default function ForgotPassword() {
                 className="input text-center text-2xl tracking-widest font-mono"
                 type="text"
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
                 required
                 maxLength={6}
                 placeholder="000000"
@@ -126,8 +175,12 @@ export default function ForgotPassword() {
                 <HiArrowLeft className="w-4 h-4 mr-1" />
                 Back
               </button>
-              <button type="submit" className="btn btn-primary flex-1" disabled={loading}>
-                {loading ? 'Verifying...' : 'Verify'}
+              <button
+                type="submit"
+                className="btn btn-primary flex-1"
+                disabled={loading}
+              >
+                {loading ? "Verifying..." : "Verify"}
               </button>
             </div>
           </form>
@@ -156,16 +209,23 @@ export default function ForgotPassword() {
                 <HiArrowLeft className="w-4 h-4 mr-1" />
                 Back
               </button>
-              <button type="submit" className="btn btn-primary flex-1" disabled={loading}>
-                {loading ? 'Resetting...' : 'Reset Password'}
+              <button
+                type="submit"
+                className="btn btn-primary flex-1"
+                disabled={loading}
+              >
+                {loading ? "Resetting..." : "Reset Password"}
               </button>
             </div>
           </form>
         )}
 
         <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
-          Remember your password?{' '}
-          <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+          Remember your password?{" "}
+          <Link
+            to="/login"
+            className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
             Login
           </Link>
         </p>
@@ -173,4 +233,3 @@ export default function ForgotPassword() {
     </div>
   );
 }
-

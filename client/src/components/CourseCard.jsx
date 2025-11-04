@@ -88,4 +88,3 @@ export default function CourseCard({ course, onEnroll, isEnrolled }) {
     </motion.div>
   );
 }
-

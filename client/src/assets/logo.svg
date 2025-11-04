@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circle background -->
+  <circle cx="256" cy="256" r="240" fill="#E5E7EB" class="dark:fill-slate-800"/>
+  
+  <!-- Arc representing education/growth -->
+  <path d="M256 96C362.039 96 448 181.961 448 288" stroke="#059669" stroke-width="32" stroke-linecap="round"/>
+  
+  <!-- Leaf shapes -->
+  <path d="M256 416C149.961 416 64 330.039 64 224C64 181.961 80 144 108 114.059C64 181.961 80 288 148 338.059C216 388.118 256 416 256 416Z" fill="#059669"/>
+  <path d="M256 416C362.039 416 448 330.039 448 224C448 181.961 432 144 404 114.059C448 181.961 432 288 364 338.059C296 388.118 256 416 256 416Z" fill="#059669"/>
+</svg>

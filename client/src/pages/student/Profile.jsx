@@ -3,7 +3,23 @@ import { useDispatch, useSelector } from 'react-redux'
 import { getProfile, updateProfile } from '../../slices/profileSlice.js'
 import { toast } from 'react-toastify'
 import { motion } from 'framer-motion'
-import { HiUser, HiPencil, HiCheck, HiXMark, HiCamera } from 'react-icons/hi2'
+import { HiPencil, HiCheck, HiXMark, HiCamera } from 'react-icons/hi2'
+import { useNavigate } from 'react-router-dom'
+import { logout } from '../../slices/authSlice.js'
+import {HiArrowRightOnRectangle } from 'react-icons/hi2'
+
+function ChangePasswordButton({ authUser }) {
+  const navigate = useNavigate()
+  const handle = () => {
+    const path = authUser?.role === 'admin' ? '/admin/change-password' : '/student/change-password'
+    navigate(path)
+  }
+  return (
+    <button onClick={handle} className="btn btn-outline hidden sm:inline">
+      Change Password
+    </button>
+  )
+}
 
 export default function Profile() {
   const dispatch = useDispatch()
@@ -75,6 +91,10 @@ export default function Profile() {
       reader.readAsDataURL(file)
     }
   }
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/login");
+  };
 
   const displayUser = user || authUser
   if (!displayUser) {
@@ -129,13 +149,16 @@ export default function Profile() {
             </span>
           </div>
           {!isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="btn btn-primary flex items-center gap-2"
-            >
-              <HiPencil className="w-4 h-4" />
-              Edit Profile
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="btn btn-primary flex items-center gap-2"
+              >
+                <HiPencil className="w-4 h-4" />
+                Edit Profile
+              </button>
+              <ChangePasswordButton authUser={authUser} />
+            </div>
           )}
         </div>
       </motion.div>
@@ -177,17 +200,7 @@ export default function Profile() {
                 onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
               />
             </div>
-            <div>
-              <label className="label">New Password (leave blank to keep current)</label>
-              <input
-                className="input"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                minLength={6}
-                placeholder="Enter new password"
-              />
-            </div>
+            {/* Password changes handled on the separate Change Password page */}
             <div className="flex gap-2 pt-2">
               <button type="submit" className="btn btn-primary flex-1 flex items-center justify-center gap-2" disabled={loading}>
                 <HiCheck className="w-4 h-4" />
@@ -221,7 +234,18 @@ export default function Profile() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Role</p>
               <p className="font-medium text-slate-900 dark:text-white capitalize">{displayUser.role}</p>
             </div>
+            <div>
+              <button
+                  onClick={handleLogout}
+                  className="btn btn-outline btn-sm flex items-center gap-2"
+                >
+                  <HiArrowRightOnRectangle className="w-4 h-4" />
+                  <span className="hidden lg:inline">Logout</span>
+                </button>
+            </div>
+            
           </div>
+          
         )}
       </motion.div>
     </div>

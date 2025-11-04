@@ -11,7 +11,12 @@ import adminRoutes from './routes/admin.routes.js';
 import studentRoutes from './routes/student.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import testEmailRoutes from './routes/testEmail.routes.js';
+import otpRoutes from "./routes/otp.routes.js";
+import forgotPasswordRoutes from "./routes/forgotPassword.routes.js";
+import adminManagementRoutes from "./routes/adminManagement.routes.js";
 import { notFound, errorHandler } from './middlewares/errorHandler.js';
+
 
 const app = express();
 
@@ -41,9 +46,13 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin-management', adminManagementRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/test-email', testEmailRoutes);
+app.use("/api/otp", otpRoutes);
+app.use("/auth/forgot-password", forgotPasswordRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

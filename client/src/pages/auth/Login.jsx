@@ -4,7 +4,8 @@ import { loginThunk } from '../../slices/authSlice.js'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { motion } from 'framer-motion'
-import { HiAcademicCap, HiEye, HiEyeSlash } from 'react-icons/hi2'
+import { HiEye, HiEyeSlash } from 'react-icons/hi2'
+import logo from '/GreenArcLogo.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -37,8 +38,8 @@ export default function Login() {
         className="card w-full max-w-md"
       >
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900 mb-4">
-            <HiAcademicCap className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+          <div className="inline-flex items-center justify-center w-40 h-20 mb-4">
+            <img src={logo} alt="Green Arc Commune Logo" className="w-full h-full" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome Back</h2>
           <p className="text-slate-600 dark:text-slate-400">Sign in to continue learning</p>
