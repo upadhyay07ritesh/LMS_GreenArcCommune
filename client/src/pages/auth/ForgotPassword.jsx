@@ -10,13 +10,15 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // only for request and reset
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const [resetToken, setResetToken] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
-  const startResendTimer = () => {
-    setResendTimer(60);
+  const startResendTimer = (seconds = 30) => {
+    setResendTimer(seconds);
     const timer = setInterval(() => {
       setResendTimer((prev) => {
         if (prev <= 1) {
@@ -30,10 +32,8 @@ export default function ForgotPassword() {
 
   const handleRequestOTP = async (e) => {
     e.preventDefault();
-    if (!email.includes('@')) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
+    if (!email.includes("@")) return toast.error("Please enter a valid email");
+
     setLoading(true);
     try {
       await api.post("/auth/forgot-password/request-otp", { email });
@@ -43,10 +43,9 @@ export default function ForgotPassword() {
     } catch (error) {
       const message = error.response?.data?.message;
       if (error.response?.status === 429) {
-        // Rate limit error
         const retryAfter = error.response.data.retryAfter || 60;
         setResendTimer(retryAfter);
-        toast.error(`Please wait ${retryAfter} seconds before requesting another OTP`);
+        toast.error(`Please wait ${retryAfter}s before requesting another OTP`);
       } else {
         toast.error(message || "Failed to send OTP");
       }
@@ -61,43 +60,65 @@ export default function ForgotPassword() {
       toast.error("Please enter a valid 6-digit OTP");
       return;
     }
-    setLoading(true);
+    setVerifying(true);
     try {
-      const response = await api.post("/auth/forgot-password/verify-otp", { email, otp });
+      const response = await api.post("/auth/forgot-password/verify-otp", {
+        email,
+        otp,
+      });
       setResetToken(response.data.resetToken);
       toast.success("OTP verified successfully");
       setStep(3);
     } catch (error) {
       const message = error.response?.data?.message;
-      if (error.response?.status === 400) {
-        toast.error(message || "Invalid or expired OTP");
+      toast.error(message || "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (resendTimer > 0 || resending) return;
+    if (!email) {
+      toast.error("Email missing. Please go back and enter your email again.");
+      return;
+    }
+
+    setResending(true);
+    try {
+      const res = await api.post("/auth/forgot-password/request-otp", { email });
+      toast.success(res.data?.message || "OTP resent successfully!");
+      startResendTimer(30);
+    } catch (error) {
+      const message = error.response?.data?.message;
+      if (error.response?.status === 429) {
+        const retryAfter = error.response.data.retryAfter || 60;
+        startResendTimer(retryAfter);
+        toast.error(`Please wait ${retryAfter}s before resending OTP`);
       } else {
-        toast.error(message || "Verification failed");
+        toast.error(message || "Failed to resend OTP");
+        startResendTimer(30);
       }
     } finally {
-      setLoading(false);
+      setResending(false);
     }
   };
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
+    if (newPassword.length < 6)
+      return toast.error("Password must be at least 6 characters");
+
     setLoading(true);
     try {
-      await api.post("/auth/forgot-password/reset", { 
+      await api.post("/auth/forgot-password/reset", {
         resetToken,
-        newPassword
+        newPassword,
       });
       toast.success("Password reset successful! Please login.");
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 1500);
+      setTimeout(() => (window.location.href = "/login"), 1500);
     } catch (error) {
-      const message = error.response?.data?.message;
-      toast.error(message || "Failed to reset password");
+      toast.error(error.response?.data?.message || "Failed to reset password");
     } finally {
       setLoading(false);
     }
@@ -127,19 +148,18 @@ export default function ForgotPassword() {
           </p>
         </div>
 
+        {/* STEP 1 */}
         {step === 1 && (
           <form onSubmit={handleRequestOTP} className="space-y-4">
-            <div>
-              <label className="label">Email</label>
-              <input
-                className="input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="your.email@example.com"
-              />
-            </div>
+            <label className="label">Email</label>
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="your.email@example.com"
+            />
             <button
               type="submit"
               className="btn btn-primary w-full"
@@ -150,64 +170,82 @@ export default function ForgotPassword() {
           </form>
         )}
 
+        {/* STEP 2 */}
         {step === 2 && (
           <form onSubmit={handleVerifyOTP} className="space-y-4">
-            <div>
-              <label className="label">OTP Code</label>
-              <input
-                className="input text-center text-2xl tracking-widest font-mono"
-                type="text"
-                value={otp}
-                onChange={(e) =>
-                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                }
-                required
-                maxLength={6}
-                placeholder="000000"
-              />
+            <label className="label">OTP Code</label>
+            <input
+              className="input text-center text-2xl tracking-widest font-mono"
+              type="text"
+              value={otp}
+              onChange={(e) =>
+                setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              required
+              maxLength={6}
+              placeholder="000000"
+            />
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {resendTimer > 0
+                  ? `Resend OTP in ${resendTimer}s`
+                  : "Didn't get the code?"}
+              </p>
+
+              <button
+                type="button"
+                onClick={handleResendOTP}
+                className={`btn btn-outline text-sm sm:text-base ${
+                  resendTimer > 0 || resending
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+                disabled={resendTimer > 0 || resending}
+              >
+                {resending ? "Resending..." : "Resend OTP"}
+              </button>
             </div>
+
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setStep(1)}
                 className="btn btn-outline flex-1"
               >
-                <HiArrowLeft className="w-4 h-4 mr-1" />
-                Back
+                <HiArrowLeft className="w-4 h-4 mr-1" /> Back
               </button>
               <button
                 type="submit"
                 className="btn btn-primary flex-1"
-                disabled={loading}
+                disabled={verifying}
               >
-                {loading ? "Verifying..." : "Verify"}
+                {verifying ? "Verifying..." : "Verify"}
               </button>
             </div>
           </form>
         )}
 
+        {/* STEP 3 */}
         {step === 3 && (
           <form onSubmit={handleResetPassword} className="space-y-4">
-            <div>
-              <label className="label">New Password</label>
-              <input
-                className="input"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="Minimum 6 characters"
-              />
-            </div>
+            <label className="label">New Password</label>
+            <input
+              className="input"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={6}
+              placeholder="Minimum 6 characters"
+            />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setStep(2)}
                 className="btn btn-outline flex-1"
               >
-                <HiArrowLeft className="w-4 h-4 mr-1" />
-                Back
+                <HiArrowLeft className="w-4 h-4 mr-1" /> Back
               </button>
               <button
                 type="submit"

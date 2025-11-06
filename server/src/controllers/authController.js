@@ -45,8 +45,9 @@ export const logout = asyncHandler(async (req, res) => {
 
 // Forgot password - request OTP
 export const requestPasswordResetOtp = asyncHandler(async (req, res) => {
+  console.log("OTP resend request received for:", req.body.email);
   const { email } = req.body;
-  
+
   if (!email || !email.includes('@')) {
     return res.status(400).json({ message: 'Please provide a valid email address' });
   }
@@ -57,11 +58,14 @@ export const requestPasswordResetOtp = asyncHandler(async (req, res) => {
     return res.json({ message: 'If the email exists, an OTP has been sent' });
   }
 
-  // Check if OTP was recently sent (within last 1 minute)
-  if (user.resetOtpExpires && user.resetOtpExpires.getTime() > Date.now() - 60000) {
-    return res.status(429).json({ 
-      message: 'Please wait a minute before requesting another OTP',
-      retryAfter: Math.ceil((user.resetOtpExpires.getTime() - Date.now() + 60000) / 1000)
+  // Enforce a cooldown (e.g., 30 seconds between resend attempts)
+  const cooldownPeriod = 30 * 1000; // 30 seconds
+
+  if (user.lastOtpSentAt && Date.now() - user.lastOtpSentAt.getTime() < cooldownPeriod) {
+    const remaining = Math.ceil((cooldownPeriod - (Date.now() - user.lastOtpSentAt.getTime())) / 1000);
+    return res.status(429).json({
+      message: `Please wait ${remaining}s before requesting another OTP`,
+      retryAfter: remaining
     });
   }
 
@@ -71,25 +75,24 @@ export const requestPasswordResetOtp = asyncHandler(async (req, res) => {
 
   // Hash OTP before saving
   const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
-  
-  // Save OTP hash and expiry
+
+  // Save OTP hash, expiry, and last sent time
   user.resetOtpHash = otpHash;
   user.resetOtpExpires = new Date(otpExpiry);
-  
-  // Send OTP email
+  user.lastOtpSentAt = new Date(); // <--- Track last send time
+
   const appName = process.env.APP_NAME || 'GreenArc LMS';
+  const username = user.name || 'User';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h1 style="color: #2563eb;">${appName} Password Reset</h1>
-      <p>Hello,</p>
-      <p>You have requested to reset your password. Here is your one-time password (OTP):</p>
+      <p>Hello ${username},</p>
+      <p>Your new One-Time Password (OTP) is:</p>
       <div style="background-color: #f3f4f6; padding: 20px; text-align: center; margin: 20px 0;">
         <span style="font-size: 24px; letter-spacing: 2px; font-weight: bold;">${otp}</span>
       </div>
       <p>This OTP will expire in 10 minutes.</p>
-      <p style="color: #64748b; margin-top: 20px;">If you didn't request this password reset, please ignore this email.</p>
-      <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;">
-      <p style="color: #64748b; font-size: 12px;">This is an automated message, please do not reply.</p>
+      <p>If you didn’t request this, please ignore this email.</p>
     </div>
   `;
 
@@ -101,16 +104,16 @@ export const requestPasswordResetOtp = asyncHandler(async (req, res) => {
       text: `Your OTP for password reset is: ${otp}. This OTP will expire in 10 minutes.`
     });
 
-    // Only save user after email is sent successfully
-    await user.save();
+    await user.save(); // ✅ Save after email is sent successfully
 
-    res.json({ 
+    res.json({
       message: 'OTP has been sent to your email',
-      expiresIn: 600 // 10 minutes in seconds
+      expiresIn: 600, // 10 minutes in seconds
+      cooldown: 30, // 30 seconds for next resend
     });
   } catch (error) {
     console.error('Failed to send OTP email:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       message: 'Failed to send OTP email. Please try again later.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });

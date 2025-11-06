@@ -52,7 +52,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/test-email', testEmailRoutes);
 app.use("/api/otp", otpRoutes);
-app.use("/auth/forgot-password", forgotPasswordRoutes);
+app.use("/api/auth/forgot-password", forgotPasswordRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
