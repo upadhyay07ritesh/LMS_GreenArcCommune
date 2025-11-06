@@ -1,53 +1,32 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-console.log('SMTP config check:', {
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  user: process.env.SMTP_USER,
-  pass: process.env.SMTP_PASS ? 'SET' : 'MISSING'
-});
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false, // ✅ Must be false for port 587
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false, // optional, helps with self-signed certs
-  },
-});
-
-// Verify SMTP connection on startup
-transporter.verify()
-  .then(() => console.log('✅ SMTP connection verified'))
-  .catch(error => console.error('❌ SMTP connection error:', error));
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendEmail({ to, subject, html, text }) {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    throw new Error('SMTP configuration is missing');
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('Missing RESEND_API_KEY in environment variables');
   }
 
-  const from = process.env.SMTP_FROM || `no-reply@${(process.env.APP_NAME || 'app').toLowerCase()}.local`;
+  const from = process.env.RESEND_FROM || 'GreenArc LMS <no-reply@greenarccommune.com>';
 
   try {
-    const info = await transporter.sendMail({
+    const response = await resend.emails.send({
       from,
       to,
       subject,
       html,
       text,
-      headers: {
-        'X-Priority': '1',
-        'X-MSMail-Priority': 'High'
-      }
     });
-    console.log('✅ Email sent successfully:', info.messageId);
-    return info;
+
+    if (response.error) {
+      console.error('❌ Resend API error:', response.error);
+      throw new Error(response.error.message);
+    }
+
+    console.log('✅ Email sent via Resend:', response.data?.id || '(no ID returned)');
+    return response.data;
   } catch (error) {
-    console.error('❌ Failed to send email:', error);
+    console.error('❌ Failed to send email via Resend:', error);
     throw error;
   }
 }
