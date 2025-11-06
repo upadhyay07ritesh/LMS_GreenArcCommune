@@ -4,7 +4,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import crypto from "crypto";
 import { sendEmail } from "../utils/email.js";
 
-
 function signToken(user) {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
     expiresIn: "7d",
@@ -116,40 +115,36 @@ export const requestPasswordResetOtp = asyncHandler(async (req, res) => {
   const appName = process.env.APP_NAME || "GreenArc LMS";
   const username = user.name || "User";
   const html = `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-    <div style="text-align: center; margin-bottom: 20px;">
-      <img src="${logo}" alt="Green Arc Commune" style="width: 80px; height: 80px; border-radius: 50%;" />
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h1 style="color: #2563eb;">${appName} Password Reset</h1>
+      <p>Dear ${username},</p>
+      <p>Your new One-Time Password (OTP) is:</p>
+      <div style="background-color: #f3f4f6; padding: 20px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 24px; letter-spacing: 2px; font-weight: bold;">${otp}</span>
+      </div>
+      <p>This OTP will expire in 10 minutes. Do not share this OTP with anyone.</p>
+      <p>If you did not request this OTP, please connect with us immediately at support@greenarccommune.com.</p>
+      <p>Regards,</p>
+      <p>Support Team</p>
+      <p>Green Arc Commune</p>
+      <p>lms.greenarccommune.com</p>
+      <br/>
+      <p>=====-----=====-----=====</p>
+
+      <p>Notice: The information contained in this e-mail
+message and/or attachments to it may contain
+confidential or privileged information. If you are
+not the intended recipient, any dissemination, use,
+review, distribution, printing or copying of the
+information contained in this e-mail message
+and/or attachments to it are strictly prohibited. If
+you have received this communication in error,
+please notify us by reply e-mail or telephone and
+immediately and permanently delete the message
+and any attachments.</p>
+<p>Thank you</p>
     </div>
-
-    <h1 style="color: #2563eb;">${appName} Password Reset</h1>
-    <p>Dear ${username},</p>
-    <p>Your new One-Time Password (OTP) is:</p>
-
-    <div style="background-color: #f3f4f6; padding: 20px; text-align: center; margin: 20px 0;">
-      <span style="font-size: 24px; letter-spacing: 2px; font-weight: bold;">${otp}</span>
-    </div>
-
-    <p>This OTP will expire in 10 minutes. Do not share this OTP with anyone.</p>
-    <p>If you did not request this OTP, please connect with us immediately at support@greenarccommune.com.</p>
-
-    <p>Regards,</p>
-    <p>Support Team</p>
-    <p>Green Arc Commune</p>
-    <p><a href="https://lms.greenarccommune.com">lms.greenarccommune.com</a></p>
-
-    <hr style="margin: 30px 0; border: none; border-top: 1px dashed #ccc;" />
-
-    <p style="font-size: 12px; color: #555;">
-      Notice: The information contained in this e-mail message and/or attachments to it may contain
-      confidential or privileged information. If you are not the intended recipient, any dissemination, use,
-      review, distribution, printing or copying of the information contained in this e-mail message and/or
-      attachments to it are strictly prohibited. If you have received this communication in error,
-      please notify us by reply e-mail or telephone and immediately and permanently delete the message
-      and any attachments.
-    </p>
-    <p style="font-size: 12px; color: #555;">Thank you</p>
-  </div>
-`;
+  `;
 
   try {
     await sendEmail({
