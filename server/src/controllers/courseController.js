@@ -85,13 +85,37 @@ export const myEnrollments = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+export const getMyEnrollments = asyncHandler(async (req, res) => {
+  const enrollments = await Enrollment.find({ user: req.user._id })
+    .populate('course', 'title category difficulty thumbnail')
+    .select('course progress completedContentIds')
+    .lean();
+  res.json(enrollments);
+});
+
+
 export const markContentComplete = asyncHandler(async (req, res) => {
   const { enrollmentId, contentId } = req.body;
-  const enr = await Enrollment.findOne({ _id: enrollmentId, user: req.user._id });
-  if (!enr) return res.status(404).json({ message: 'Enrollment not found' });
-  if (!enr.completedContentIds.find((id) => id.toString() === contentId)) {
-    enr.completedContentIds.push(contentId);
-    await enr.save();
+
+  const enrollment = await Enrollment.findById(enrollmentId);
+  if (!enrollment) return res.status(404).json({ message: "Enrollment not found" });
+
+  // Avoid duplicates
+  if (!enrollment.completedContentIds.includes(contentId)) {
+    enrollment.completedContentIds.push(contentId);
+    await enrollment.save();
   }
-  res.json(enr);
+
+  // Calculate progress %
+  const course = await Course.findById(enrollment.course);
+  const total = course.contents.length;
+  const completed = enrollment.completedContentIds.length;
+  const progress = Math.min(100, Math.round((completed / total) * 100));
+
+  res.json({
+    _id: enrollment._id,
+    course: enrollment.course,
+    progress,
+    completedContentIds: enrollment.completedContentIds,
+  });
 });

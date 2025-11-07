@@ -1,45 +1,70 @@
-import { useEffect } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { fetchCourse, myEnrollments, markProgress, enrollCourse } from '../../slices/courseSlice.js'
-import { useParams, useNavigate } from 'react-router-dom'
-import { toast } from 'react-toastify'
-import { motion } from 'framer-motion'
-import { HiPlay, HiDocumentText, HiAcademicCap, HiCheckCircle, HiClock } from 'react-icons/hi2'
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchCourse,
+  myEnrollments,
+  markProgress,
+  enrollCourse,
+} from "../../slices/courseSlice.js";
+import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { motion } from "framer-motion";
+import {
+  HiPlay,
+  HiDocumentText,
+  HiAcademicCap,
+  HiCheckCircle,
+  HiClock,
+} from "react-icons/hi2";
 
 export default function CourseDetail() {
-  const { id } = useParams()
-  const dispatch = useDispatch()
-  const navigate = useNavigate()
-  const { current, enrollments, loading } = useSelector(s => s.courses)
-  const enrollment = enrollments.find(e => e.course._id === id)
+  const { id } = useParams();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { current, enrollments, loading } = useSelector((s) => s.courses);
+  const enrollment = enrollments.find((e) => e.course._id === id);
+  const [localProgress, setLocalProgress] = useState(0);
 
   useEffect(() => {
-    dispatch(fetchCourse(id))
-    dispatch(myEnrollments())
-  }, [dispatch, id])
+    dispatch(fetchCourse(id));
+    dispatch(myEnrollments());
+  }, [dispatch, id]);
+
+  useEffect(() => {
+    if (enrollment && current?.contents) {
+      const total = current.contents.length;
+      const completed = enrollment?.completedContentIds?.length || 0;
+      setLocalProgress(total > 0 ? Math.round((completed / total) * 100) : 0);
+    }
+  }, [enrollment, current]);
 
   const handleEnroll = async () => {
-    const res = await dispatch(enrollCourse(id))
-    if (res.meta.requestStatus === 'fulfilled') {
-      toast.success('Successfully enrolled!')
-      dispatch(myEnrollments())
+    const res = await dispatch(enrollCourse(id));
+    if (res.meta.requestStatus === "fulfilled") {
+      toast.success("Successfully enrolled!");
+      dispatch(myEnrollments());
     } else {
-      toast.error(res.payload || 'Failed to enroll')
+      toast.error(res.payload || "Failed to enroll");
     }
-  }
+  };
 
-  const isCompleted = (contentId) => enrollment?.completedContentIds?.some(x => x.toString() === contentId.toString())
-  const totalContents = current?.contents?.length || 0
-  const completedCount = enrollment?.completedContentIds?.length || 0
-  const progress = totalContents > 0 ? Math.round((completedCount / totalContents) * 100) : 0
+  const isCompleted = (contentId) =>
+    enrollment?.completedContentIds?.some(
+      (x) => x.toString() === contentId.toString()
+    );
+  const totalContents = current?.contents?.length || 0;
+  const completedCount = enrollment?.completedContentIds?.length || 0;
+  const progress = localProgress;
 
   if (loading || !current) {
     return (
       <div className="card text-center py-12">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-        <p className="mt-4 text-slate-600 dark:text-slate-400">Loading course...</p>
+        <p className="mt-4 text-slate-600 dark:text-slate-400">
+          Loading course...
+        </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -54,14 +79,16 @@ export default function CourseDetail() {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
-                {current.category || 'General'}
+                {current.category || "General"}
               </span>
               <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
-                {current.difficulty || 'Beginner'}
+                {current.difficulty || "Beginner"}
               </span>
             </div>
             <h1 className="text-3xl font-bold mb-2">{current.title}</h1>
-            <p className="text-primary-100 mb-4">{current.description || 'No description available'}</p>
+            <p className="text-primary-100 mb-4">
+              {current.description || "No description available"}
+            </p>
             <div className="flex items-center gap-4 text-sm">
               {current.instructor && (
                 <div className="flex items-center gap-2">
@@ -99,16 +126,20 @@ export default function CourseDetail() {
           className="card"
         >
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Progress</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+              Progress
+            </h3>
             <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
               {completedCount} / {totalContents} completed
             </span>
           </div>
           <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3">
             <motion.div
+              key={progress} // 👈 ensures re-animation
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              className="bg-primary-500 h-3 rounded-full transition-all duration-500"
+              transition={{ duration: 0.6, ease: "easeInOut" }}
+              className="bg-primary-500 h-3 rounded-full"
             />
           </div>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
@@ -119,13 +150,18 @@ export default function CourseDetail() {
 
       {/* Course Contents */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Course Content</h2>
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+          Course Content
+        </h2>
         {current.contents && current.contents.length > 0 ? (
           current.contents.map((content, idx) => {
-            const Icon = content.type === 'video' ? HiPlay :
-                        content.type === 'pdf' ? HiDocumentText :
-                        HiAcademicCap
-            const isContentCompleted = enrollment && isCompleted(content._id)
+            const Icon =
+              content.type === "video"
+                ? HiPlay
+                : content.type === "pdf"
+                ? HiDocumentText
+                : HiAcademicCap;
+            const isContentCompleted = enrollment && isCompleted(content._id);
 
             return (
               <motion.div
@@ -136,17 +172,21 @@ export default function CourseDetail() {
                 className="card"
               >
                 <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-lg ${
-                    isContentCompleted
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                  }`}>
+                  <div
+                    className={`p-3 rounded-lg ${
+                      isContentCompleted
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                        : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
                     <Icon className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <h3 className="font-semibold text-slate-900 dark:text-white">{content.title}</h3>
+                        <h3 className="font-semibold text-slate-900 dark:text-white">
+                          {content.title}
+                        </h3>
                         <span className="text-xs text-slate-500 dark:text-slate-400 uppercase">
                           {content.type}
                         </span>
@@ -156,13 +196,13 @@ export default function CourseDetail() {
                       )}
                     </div>
 
-                    {content.type === 'video' && content.url && (
+                    {content.type === "video" && content.url && (
                       <div className="mt-3 rounded-lg overflow-hidden">
                         <video src={content.url} controls className="w-full" />
                       </div>
                     )}
 
-                    {content.type === 'pdf' && content.url && (
+                    {content.type === "pdf" && content.url && (
                       <a
                         href={content.url}
                         target="_blank"
@@ -174,18 +214,52 @@ export default function CourseDetail() {
                       </a>
                     )}
 
-                    {content.type === 'quiz' && (
+                    {content.type === "quiz" && (
                       <div className="mt-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                          Quiz with {content.quiz?.questions?.length || 0} question{content.quiz?.questions?.length !== 1 ? 's' : ''}
+                          Quiz with {content.quiz?.questions?.length || 0}{" "}
+                          question
+                          {content.quiz?.questions?.length !== 1 ? "s" : ""}
                         </p>
                       </div>
                     )}
 
                     {enrollment && (
                       <button
-                        onClick={() => dispatch(markProgress({ enrollmentId: enrollment.id, contentId: content._id }))}
-                        className={`mt-3 btn ${isContentCompleted ? 'btn-outline' : 'btn-primary'} flex items-center gap-2`}
+                        onClick={async () => {
+                          if (isContentCompleted) return;
+
+                          const res = await dispatch(
+                            markProgress({
+                              enrollmentId: enrollment.id,
+                              contentId: content._id,
+                            })
+                          );
+
+                          if (res.meta.requestStatus === "fulfilled") {
+                            toast.success("Progress updated!");
+
+                            // ✅ Update local progress instantly
+                            const newCompleted =
+                              (enrollment?.completedContentIds?.length || 0) +
+                              1;
+                            const total = current.contents.length;
+                            setLocalProgress(
+                              Math.min(
+                                100,
+                                Math.round((newCompleted / total) * 100)
+                              )
+                            );
+
+                            // ✅ Sync Redux globally so Dashboard updates too
+                            dispatch(myEnrollments());
+                          } else {
+                            toast.error("Failed to mark as complete");
+                          }
+                        }}
+                        className={`mt-3 btn ${
+                          isContentCompleted ? "btn-outline" : "btn-primary"
+                        } flex items-center gap-2`}
                       >
                         {isContentCompleted ? (
                           <>
@@ -193,14 +267,14 @@ export default function CourseDetail() {
                             Completed
                           </>
                         ) : (
-                          'Mark as Complete'
+                          "Mark as Complete"
                         )}
                       </button>
                     )}
                   </div>
                 </div>
               </motion.div>
-            )
+            );
           })
         ) : (
           <div className="card text-center py-8 text-slate-600 dark:text-slate-400">
@@ -209,5 +283,5 @@ export default function CourseDetail() {
         )}
       </div>
     </div>
-  )
+  );
 }

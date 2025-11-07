@@ -4,7 +4,7 @@ import { logout } from '../slices/authSlice.js'
 import { motion } from 'framer-motion'
 import DarkModeToggle from '../components/DarkModeToggle.jsx'
 import NotificationBanner from '../components/NotificationBanner.jsx'
-import { HiHome, HiBookOpen, HiUsers, HiChartBar, HiArrowRightOnRectangle, HiBars3, HiXMark, HiShieldCheck } from 'react-icons/hi2'
+import { HiHome, HiBookOpen, HiUsers, HiChartBar, HiLink, HiArrowRightOnRectangle, HiBars3, HiXMark, HiShieldCheck } from 'react-icons/hi2'
 import { useState } from 'react'
 
 export default function AdminLayout() {
@@ -23,6 +23,8 @@ export default function AdminLayout() {
     { path: '/admin/courses', label: 'Courses', icon: HiBookOpen },
     { path: '/admin/students', label: 'Students', icon: HiUsers },
     { path: '/admin/analytics', label: 'Analytics', icon: HiChartBar },
+    { path: "/admin/course-live-sessions", label: "Course Live Sessions", icon: HiLink },
+
   ]
 
   return (

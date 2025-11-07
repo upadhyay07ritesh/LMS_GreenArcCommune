@@ -9,6 +9,7 @@ import CourseDetail from './pages/student/CourseDetail.jsx'
 import AdminDashboard from './pages/admin/Dashboard.jsx'
 import ManageCourses from './pages/admin/ManageCourses.jsx'
 import ManageStudents from './pages/admin/ManageStudents.jsx'
+import AddStudent from './pages/admin/AddStudent.jsx'
 import Analytics from './pages/admin/Analytics.jsx'
 import AddAdmin from './pages/admin/AddAdmin.jsx'
 import ChangePassword from './pages/admin/ChangePassword.jsx'
@@ -16,12 +17,13 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import AdminRoute from './components/AdminRoute.jsx'
 import StudentLayout from './layouts/StudentLayout.jsx'
 import AdminLayout from './layouts/AdminLayout.jsx'
-import ScreenProtector from './components/ScreenProtector.jsx'
+import CourseLiveSessions from './pages/admin/CourseLiveSessions.jsx'
+// import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
   return (
     <>
-    <ScreenProtector />
+    {/* <ScreenProtector /> */}
     <Routes>
       <Route path="/" element={<Navigate to="/login" />} />
       <Route path="/login" element={<Login />} />
@@ -46,7 +48,9 @@ export default function App() {
           <Route path="/admin/change-password" element={<ChangePassword />} />
           <Route path="/admin/courses" element={<ManageCourses />} />
           <Route path="/admin/students" element={<ManageStudents />} />
+          <Route path="/admin/add-student" element={<AddStudent />} />
           <Route path="/admin/analytics" element={<Analytics />} />
+          <Route path="/admin/course-live-sessions" element={<CourseLiveSessions />} />
         </Route>
       </Route>
 

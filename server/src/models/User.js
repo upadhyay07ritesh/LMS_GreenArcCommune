@@ -1,3 +1,4 @@
+// server/src/models/User.js
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -8,20 +9,32 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, select: false },
     role: { type: String, enum: ['student', 'admin'], default: 'student' },
     studentId: { type: String, unique: true, sparse: true },
+    course: { type: String }, // existing field for initial course
+    dob: { type: Date },
     status: { type: String, enum: ['active', 'banned'], default: 'active' },
-    avatar: { type: String }, // URL to profile image
+    avatar: { type: String },
     emailVerified: { type: Boolean, default: false },
-    // Password reset fields
+
+    // ✅ NEW FIELD for enrolled courses
+    enrolledCourses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Course',
+      },
+    ],
+
+    // password reset fields
     resetOtpHash: { type: String, select: false },
     resetOtpExpires: { type: Date },
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date },
-    passwordHistory: [{ type: String, select: false }], // Store hashed passwords
-    lastPasswordChange: { type: Date, default: Date.now }
+    passwordHistory: [{ type: String, select: false }],
+    lastPasswordChange: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
 
+// password hashing logic
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);

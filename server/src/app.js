@@ -45,7 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-management', adminManagementRoutes);
-app.use('/api/students', studentRoutes);
+app.use('/api/student', studentRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/test-email', testEmailRoutes);
