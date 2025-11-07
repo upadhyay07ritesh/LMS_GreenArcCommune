@@ -16,9 +16,12 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import AdminRoute from './components/AdminRoute.jsx'
 import StudentLayout from './layouts/StudentLayout.jsx'
 import AdminLayout from './layouts/AdminLayout.jsx'
+import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
   return (
+    <>
+    <ScreenProtector />
     <Routes>
       <Route path="/" element={<Navigate to="/login" />} />
       <Route path="/login" element={<Login />} />
@@ -49,5 +52,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
+    </>
   )
 }
