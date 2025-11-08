@@ -1,47 +1,106 @@
-import express from 'express';
-import { body } from 'express-validator';
-import { protect } from '../middlewares/auth.js';
-import { runValidation } from '../middlewares/validate.js';
-import { requireAdmin } from '../middlewares/requireAdmin.js';
+import express from "express";
+import path from "path";
+import multer from "multer";
+import { fileURLToPath } from "url";
+import fs from "fs";
+import { body } from "express-validator";
+
+// Controllers
 import {
   listAdmins,
   addAdmin,
   updateAdminStatus,
-  removeAdmin
-} from '../controllers/adminManagement.controller.js';
+  removeAdmin,
+} from "../controllers/adminManagement.controller.js";
+
+import {
+  getLatestAdminId,
+  getAdminById,
+} from "../controllers/adminController.js";
+
+import { handleUpload } from "../controllers/uploadController.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { protect, authorize } from "../middlewares/auth.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin role
-router.use(protect, requireAdmin);
+/* ============================================================
+   🧠 MULTER CONFIGURATION
+============================================================ */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, "../uploads");
 
-// List all admins
-router.get('/admins', listAdmins);
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("📁 Created uploads directory:", uploadDir);
+}
 
-// Add new admin
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, uploadDir),
+  filename: (_, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const base = path
+      .basename(file.originalname, ext)
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9_]/g, "");
+    cb(null, `${base}_${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB limit
+});
+
+/* ============================================================
+   ⚙️ PUBLIC ROUTE (No Auth)
+============================================================ */
+
+// ✅ This endpoint is always public
+router.get("/admins/latest-id", asyncHandler(getLatestAdminId));
+
+/* ============================================================
+   🔒 PROTECTED ADMIN ROUTES
+============================================================ */
+
+// Everything after this requires authentication
+router.use(protect, authorize("admin"));
+
+// ✅ Get all admins
+router.get("/admins", asyncHandler(listAdmins));
+
+// ✅ Add new admin
 router.post(
-  '/admins',
-  [
-    body('name').trim().notEmpty().withMessage('Name is required'),
-    body('email').isEmail().withMessage('Please provide a valid email')
-  ],
-  runValidation,
-  addAdmin
+  "/admins",
+  protect, // ✅ must come before addAdmin
+  authorize("admin", "superadmin"), // ✅ allow admin to create another admin
+  upload.single("profilePhoto"),
+  asyncHandler(addAdmin)
 );
 
-// Update admin status
+// ✅ Latest Admin ID (preview)
+router.get(
+  "/admins/latest-id",
+  protect,
+  authorize("admin", "superadmin"),
+  asyncHandler(getAdminById)
+);
+
+// ✅ Get admin by ID
+router.get("/admins/:id", asyncHandler(getAdminById));
+
+// ✅ Update admin status
 router.patch(
-  '/admins/:id/status',
-  [
-    body('status')
-      .isIn(['active', 'banned'])
-      .withMessage('Status must be either active or banned')
-  ],
-  runValidation,
-  updateAdminStatus
+  "/admins/:id/status",
+  [body("status").isIn(["active", "banned"])],
+  asyncHandler(updateAdminStatus)
 );
 
-// Remove admin role
-router.delete('/admins/:id', removeAdmin);
+// ✅ Remove admin privileges
+router.delete("/admins/:id", asyncHandler(removeAdmin));
+
+// ✅ Optional file upload route
+router.post("/upload", upload.single("file"), asyncHandler(handleUpload));
 
 export default router;

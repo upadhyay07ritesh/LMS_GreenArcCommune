@@ -11,21 +11,44 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const { loading } = useSelector(s => s.auth)
+  const { loading } = useSelector((s) => s.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const location = useLocation()
 
   const onSubmit = async (e) => {
     e.preventDefault()
-    const res = await dispatch(loginThunk({ email, password }))
+
+    const trimmedEmail = email.trim().toLowerCase()
+
+    if (!trimmedEmail || !password) {
+      toast.error('Please enter your email and password.')
+      return
+    }
+
+    const res = await dispatch(loginThunk({ email: trimmedEmail, password }))
+
     if (res.meta.requestStatus === 'fulfilled') {
-      const role = res.payload.user.role
-      toast.success('Welcome back!')
-      if (role === 'admin') navigate('/admin')
-      else navigate(location.state?.from?.pathname || '/student')
+      const user = res.payload.user
+      const role = user.role
+
+      toast.success(`Welcome back, ${user.name || 'User'}!`)
+
+      // ✅ Redirect logic based on role
+      if (role === 'admin') {
+        navigate('/admin/', { replace: true })
+      } else if (role === 'student') {
+        navigate(location.state?.from?.pathname || '/student', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
     } else {
-      toast.error(res.payload || 'Login failed')
+      // Show backend error message if available
+      const errorMsg =
+        res.payload?.message ||
+        res.error?.message ||
+        'Login failed. Please check your credentials.'
+      toast.error(errorMsg)
     }
   }
 
@@ -41,7 +64,9 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-40 h-20 mb-4">
             <img src={logo} alt="Green Arc Commune Logo" className="w-full h-full" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome Back</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+            Welcome Back
+          </h2>
           <p className="text-slate-600 dark:text-slate-400">Sign in to continue learning</p>
         </div>
 
@@ -57,6 +82,7 @@ export default function Login() {
               placeholder="your.email@example.com"
             />
           </div>
+
           <div>
             <label className="label">Password</label>
             <div className="relative">
@@ -73,15 +99,24 @@ export default function Login() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
               >
-                {showPassword ? <HiEyeSlash className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
+                {showPassword ? (
+                  <HiEyeSlash className="w-5 h-5" />
+                ) : (
+                  <HiEye className="w-5 h-5" />
+                )}
               </button>
             </div>
           </div>
+
           <div className="flex items-center justify-between text-sm">
-            <Link to="/forgot-password" className="text-primary-600 dark:text-primary-400 hover:underline">
+            <Link
+              to="/forgot-password"
+              className="text-primary-600 dark:text-primary-400 hover:underline"
+            >
               Forgot password?
             </Link>
           </div>
+
           <button className="btn btn-primary w-full" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -89,7 +124,10 @@ export default function Login() {
 
         <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+          <Link
+            to="/signup"
+            className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
             Sign up
           </Link>
         </p>

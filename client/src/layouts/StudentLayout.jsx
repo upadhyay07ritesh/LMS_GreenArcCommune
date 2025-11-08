@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import DarkModeToggle from "../components/DarkModeToggle.jsx";
 import NotificationBanner from "../components/NotificationBanner.jsx";
@@ -12,15 +12,17 @@ import {
   HiXMark,
   HiBell,
 } from "react-icons/hi2";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { logout } from "../slices/authSlice.js";
 
 export default function StudentLayout() {
   const { user } = useSelector((s) => s.auth);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
@@ -28,13 +30,18 @@ export default function StudentLayout() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/login");
+  };
+
   const navItems = [
     { path: "/student", label: "Dashboard", icon: HiHome },
     { path: "/student/courses", label: "Courses", icon: HiBookOpen },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors overflow-x-hidden">
       <NotificationBanner />
 
       {/* Navbar */}

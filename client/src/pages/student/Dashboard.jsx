@@ -106,7 +106,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in overflow-x-hidden">
       {/* Welcome Section */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -117,7 +117,7 @@ export default function Dashboard() {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
 
         <div className="relative p-8">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4 sm:gap-6">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <HiSparkles className="w-6 h-6 text-yellow-300" />
@@ -184,7 +184,7 @@ export default function Dashboard() {
 </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
           return (
@@ -217,7 +217,7 @@ export default function Dashboard() {
       </div>
 
       {/* Two Column Layout (My Courses + Available Courses) */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* My Courses */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -266,21 +266,21 @@ export default function Dashboard() {
               <div className="space-y-4">
                 {enrollments.slice(0, 5).map((e) => (
                   <Link
-                    key={e.id}
-                    to={`/student/courses/${e.course._id}`}
+                    key={e._id || e.id}
+                    to={`/student/courses/${e?.course?._id || e?.courseId}`}
                     className="group block p-5 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary-300 dark:hover:border-primary-700 hover:shadow-lg transition-all duration-200"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors mb-1">
-                          {e.course.title}
+                    <div className="flex items-start justify-between gap-3 sm:gap-4 mb-3 min-w-0">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors mb-1 break-words">
+                          {e?.course?.title || e?.title || 'Course'}
                         </h4>
                         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                           <HiClock className="w-3 h-3" />
                           <span>In progress</span>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
                         <span className="text-2xl font-bold text-primary-600 dark:text-primary-400">
                           {e.progress}%
                         </span>
@@ -289,8 +289,6 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
-
-                    {/* Progress Bar */}
                     <div className="relative w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
                       <div
                         className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500"
@@ -351,12 +349,12 @@ export default function Dashboard() {
                     to={`/student/courses/${c._id}`}
                     className="group flex items-center justify-between p-4 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all duration-200"
                   >
-                    <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                         <HiBookOpen className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                        <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate break-words">
                           {c.title}
                         </h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

@@ -1,152 +1,197 @@
-import { User } from '../models/User.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import bcrypt from 'bcryptjs';
-import { sendEmail } from '../utils/email.js';
+import { User } from "../models/User.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import bcrypt from "bcryptjs";
+import { sendEmail } from "../utils/email.js";
 
-// List all admins
+/* ============================================================
+   ✅ List All Admins
+============================================================ */
 export const listAdmins = asyncHandler(async (req, res) => {
-  const admins = await User.find({ role: 'admin' })
-    .select('-password -passwordHistory')
-    .sort({ createdAt: -1 });
-  res.json(admins);
+  try {
+    const admins = await User.find({ role: "admin" })
+      .select("-password -passwordHistory")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(admins);
+  } catch (error) {
+    console.error("❌ Error fetching admins:", error);
+    res.status(500).json({ message: "Failed to load admins" });
+  }
 });
 
-// Add new admin
+/* ============================================================
+   ✅ Add New Admin (with Permissions, Department & Avatar)
+============================================================ */
 export const addAdmin = asyncHandler(async (req, res) => {
   const { name, email } = req.body;
 
-  // Check if user already exists
+  // 🧩 Parse adminMeta safely (department, permissions)
+  let adminMeta = {};
+  try {
+    if (req.body.adminMeta) {
+      adminMeta =
+        typeof req.body.adminMeta === "string"
+          ? JSON.parse(req.body.adminMeta)
+          : req.body.adminMeta;
+    }
+  } catch (error) {
+    console.warn("⚠️ Invalid adminMeta JSON:", req.body.adminMeta);
+    adminMeta = {};
+  }
+
+  const profilePhoto = req.file ? `/uploads/${req.file.filename}` : "";
+
+  // 🔍 Check if admin already exists
   const existingUser = await User.findOne({ email });
   if (existingUser) {
-    return res.status(400).json({ 
-      message: 'User with this email already exists' 
+    return res.status(400).json({
+      message: "User with this email already exists",
     });
   }
 
-  // Generate a temporary password
-  const tempPassword = Math.random().toString(36).slice(-8);
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(tempPassword, salt);
+  // 🔐 Generate secure random temporary password
+  const tempPassword = Math.random().toString(36).slice(-8) || "GAC@1234TEMP";
 
-  // Create new admin user
-  const admin = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-    role: 'admin',
-    emailVerified: false,
-    status: 'active'
-  });
+  // 🧱 Create new admin user (model will generate adminId)
+  let admin;
+  try {
+    admin = await User.create({
+      name: name?.trim(),
+      email: email?.trim().toLowerCase(),
+      password: tempPassword,
+      role: "admin",
+      emailVerified: false,
+      status: "active",
+      avatar: profilePhoto,
+      adminMeta: {
+        department: adminMeta.department?.trim() || "",
+        permissions: Array.isArray(adminMeta.permissions)
+          ? adminMeta.permissions
+          : [],
+      },
+    });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0] || "field";
+      return res
+        .status(400)
+        .json({ message: `Duplicate ${field}. Please use a different value.` });
+    }
+    throw err;
+  }
 
-  // Send email with temporary password
+  // 📧 Send welcome email with credentials
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h1>Welcome to GreenArc LMS Admin Team</h1>
-      <p>Hello ${name},</p>
-      <p>You have been added as an administrator to the GreenArc LMS platform.</p>
+      <h1 style="color: #0f766e;">Welcome to GreenArc LMS Admin Team</h1>
+      <p>Hello <strong>${name}</strong>,</p>
+      <p>You have been successfully added as an <strong>Administrator</strong> on the GreenArc LMS platform.</p>
       <p>Here are your temporary login credentials:</p>
-      <div style="background-color: #f3f4f6; padding: 20px; margin: 20px 0;">
+      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Admin ID:</strong> ${admin.adminId}</p>
         <p><strong>Email:</strong> ${email}</p>
         <p><strong>Temporary Password:</strong> ${tempPassword}</p>
       </div>
-      <p><strong>Important:</strong> Please log in and change your password immediately.</p>
-      <p>If you believe this was a mistake, please contact the super admin.</p>
+      <p><strong>Note:</strong> Please log in and update your password immediately for security reasons.</p>
+      <p>If you did not request this account, please contact the super admin.</p>
+      <hr style="margin: 30px 0; border: none; border-top: 1px solid #ccc;">
+      <p style="font-size: 12px; color: #777;">GreenArc Commune LMS Team</p>
     </div>
   `;
 
   try {
     await sendEmail({
       to: email,
-      subject: 'Welcome to GreenArc LMS Admin Team',
+      subject: "Welcome to GreenArc LMS Admin Team",
       html,
-      text: `Welcome to GreenArc LMS Admin Team. Your temporary password is: ${tempPassword}. Please log in and change your password immediately.`
+      text: `Welcome to GreenArc LMS Admin Team.
+      Your Admin ID: ${admin.adminId}, Email: ${email}, Temporary Password: ${tempPassword}.
+      Please log in and change your password immediately.`,
     });
   } catch (error) {
-    // Delete the created admin if email fails
-    await User.findByIdAndDelete(admin._id);
-    throw new Error('Failed to send welcome email. Admin not created.');
+    console.warn("⚠️ Email send failed, but admin will remain:", error.message);
   }
 
   res.status(201).json({
-    message: 'Admin created successfully. Login credentials sent via email.',
+    message: "✅ Admin created successfully. Credentials sent via email.",
     admin: {
       id: admin._id,
       name: admin.name,
       email: admin.email,
-      role: admin.role
-    }
+      adminId: admin.adminId,
+      role: admin.role,
+      department: admin.adminMeta?.department,
+      permissions: admin.adminMeta?.permissions,
+      avatar: admin.avatar,
+      createdAt: admin.createdAt,
+    },
   });
 });
 
-// Update admin status
+/* ============================================================
+   ✅ Latest Admin ID (preview only)
+============================================================ */
+export const latestAdminId = asyncHandler(async (req, res) => {
+  let nextNumber = 1;
+  const lastAdmin = await User.findOne({ role: "admin", adminId: { $exists: true } })
+    .sort({ createdAt: -1 })
+    .select("adminId")
+    .lean();
+
+  if (lastAdmin?.adminId) {
+    const match = lastAdmin.adminId.match(/\d+$/);
+    if (match) nextNumber = parseInt(match[0]) + 1;
+  }
+  const nextId = `GACADM${String(nextNumber).padStart(3, "0")}`;
+  res.json({ nextId });
+});
+
+/* ============================================================
+   ✅ Update Admin Status
+============================================================ */
 export const updateAdminStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const adminId = req.params.id;
 
-  // Prevent self-deactivation
   if (adminId === req.user.id) {
-    return res.status(400).json({ 
-      message: 'You cannot modify your own admin status' 
-    });
+    return res
+      .status(400)
+      .json({ message: "You cannot modify your own admin status" });
   }
 
-  const admin = await User.findOneAndUpdate(
-    { _id: adminId, role: 'admin' },
-    { status },
-    { new: true }
-  ).select('-password -passwordHistory');
+  const admin = await User.findOneAndDelete({ _id: adminId, role: "admin" });
 
-  if (!admin) {
-    return res.status(404).json({ message: 'Admin not found' });
-  }
+  if (!admin) return res.status(404).json({ message: "Admin not found" });
 
-  res.json(admin);
+  res.json({
+    message: "Admin status updated successfully",
+    admin,
+  });
 });
 
-// Remove admin role
+/* ============================================================
+   ✅ Remove Admin Role
+============================================================ */
 export const removeAdmin = asyncHandler(async (req, res) => {
   const adminId = req.params.id;
 
-  // Prevent self-removal
   if (adminId === req.user.id) {
-    return res.status(400).json({ 
-      message: 'You cannot remove your own admin privileges' 
-    });
+    return res.status(400).json({ message: "You cannot delete your own admin account" });
   }
 
-  const admin = await User.findOneAndUpdate(
-    { _id: adminId, role: 'admin' },
-    { role: 'student', studentId: `STU${Date.now()}` },
-    { new: true }
-  ).select('-password -passwordHistory');
+  const admin = await User.findOneAndDelete({ _id: adminId, role: "admin" });
 
-  if (!admin) {
-    return res.status(404).json({ message: 'Admin not found' });
-  }
-
-  // Send notification email
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h1>Admin Access Removed</h1>
-      <p>Hello ${admin.name},</p>
-      <p>Your administrator access to the GreenArc LMS platform has been removed.</p>
-      <p>If you believe this was a mistake, please contact the super admin.</p>
-    </div>
-  `;
+  if (!admin) return res.status(404).json({ message: "Admin not found" });
 
   try {
     await sendEmail({
       to: admin.email,
-      subject: 'GreenArc LMS Admin Access Removed',
-      html,
-      text: `Your administrator access to the GreenArc LMS platform has been removed. If you believe this was a mistake, please contact the super admin.`
+      subject: "Admin Account Removed - GreenArc LMS",
+      html: `<p>Hello ${admin.name},</p><p>Your admin account has been removed.</p>`,
     });
   } catch (error) {
-    console.error('Failed to send notification email:', error);
+    console.error("⚠️ Failed to send admin removal email:", error);
   }
 
-  res.json({
-    message: 'Admin role removed successfully',
-    user: admin
-  });
+  res.json({ message: "Admin deleted successfully" });
 });

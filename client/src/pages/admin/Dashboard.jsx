@@ -79,6 +79,7 @@ export default function AdminDashboard() {
       trend: 'up'
     },
   ]
+  
 
   return (
     <div className="space-y-8 animate-fade-in">

@@ -39,24 +39,54 @@ export const signup = asyncHandler(async (req, res) => {
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email }).select("+password");
-  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+  // ✅ Step 1: Normalize the email for case-insensitive match
+  const normalizedEmail = email?.trim().toLowerCase();
+
+  // ✅ Step 2: Find user (admin or student) by email
+  const user = await User.findOne({ email: normalizedEmail }).select("+password");
+
+  if (!user) {
+    return res.status(401).json({ message: "No account found with this email." });
+  }
+
+  // ✅ Step 3: Check password validity
   const match = await user.matchPassword(password);
-  if (!match) return res.status(401).json({ message: "Invalid credentials" });
-  if (user.status === "banned")
-    return res.status(403).json({ message: "Account banned" });
+  if (!match) {
+    return res.status(401).json({ message: "Incorrect password." });
+  }
+
+  // ✅ Step 4: Check account status
+  if (user.status === "banned") {
+    return res.status(403).json({ message: "Your account has been banned." });
+  }
+
+  // ✅ Step 5: Generate JWT token
   const token = signToken(user);
+
+  // ✅ Step 6: Return proper user details based on role
+  const userData = {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  };
+
+  if (user.role === "student") {
+    userData.studentId = user.studentId;
+  } else if (user.role === "admin") {
+    userData.adminId = user.adminId;
+    userData.department = user.adminMeta?.department || null;
+    userData.permissions = user.adminMeta?.permissions || [];
+  }
+
   res.json({
+    message: `Welcome back, ${user.name}!`,
     token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      studentId: user.studentId,
-    },
+    user: userData,
   });
 });
+
 
 export const me = asyncHandler(async (req, res) => {
   res.json({ user: req.user });
