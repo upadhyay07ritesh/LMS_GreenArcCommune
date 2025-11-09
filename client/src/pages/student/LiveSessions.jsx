@@ -94,7 +94,7 @@ export default function LiveSessions() {
   };
 
   return (
-    <div className="min-h-screen py-6 px-4 sm:px-8 bg-gray-50 dark:bg-slate-900 transition-colors">
+    <div className="min-h-screen pt-12 px-4 sm:px-8 bg-gray-50 dark:bg-slate-900 transition-colors">
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}

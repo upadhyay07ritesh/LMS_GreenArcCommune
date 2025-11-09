@@ -3,10 +3,9 @@ import { useDispatch, useSelector } from 'react-redux'
 import { getProfile, updateProfile } from '../../slices/profileSlice.js'
 import { toast } from 'react-toastify'
 import { motion } from 'framer-motion'
-import { HiPencil, HiCheck, HiXMark, HiCamera } from 'react-icons/hi2'
+import { HiPencil, HiCheck, HiXMark, HiCamera, HiArrowRightOnRectangle } from 'react-icons/hi2'
 import { useNavigate } from 'react-router-dom'
 import { logout } from '../../slices/authSlice.js'
-import {HiArrowRightOnRectangle } from 'react-icons/hi2'
 
 function ChangePasswordButton({ authUser }) {
   const navigate = useNavigate()
@@ -15,7 +14,10 @@ function ChangePasswordButton({ authUser }) {
     navigate(path)
   }
   return (
-    <button onClick={handle} className="btn btn-outline hidden sm:inline">
+    <button
+      onClick={handle}
+      className="btn btn-outline w-full sm:w-auto"
+    >
       Change Password
     </button>
   )
@@ -33,6 +35,7 @@ export default function Profile() {
     password: '',
     avatar: '',
   })
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!user && authUser) {
@@ -91,10 +94,11 @@ export default function Profile() {
       reader.readAsDataURL(file)
     }
   }
+
   const handleLogout = () => {
-    dispatch(logout());
-    navigate("/login");
-  };
+    dispatch(logout())
+    navigate("/login")
+  }
 
   const displayUser = user || authUser
   if (!displayUser) {
@@ -107,16 +111,17 @@ export default function Profile() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
+    <div className="pt-12 space-y-6 animate-fade-in max-w-3xl mx-auto px-3 sm:px-0">
       {/* Profile Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="card"
       >
-        <div className="flex items-center gap-6">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-3xl font-bold overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-6 text-center sm:text-left">
+          {/* Avatar */}
+          <div className="relative mx-auto sm:mx-0">
+            <div className="w-28 h-28 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-3xl font-bold overflow-hidden">
               {formData.avatar || displayUser.avatar ? (
                 <img
                   src={formData.avatar || displayUser.avatar}
@@ -139,27 +144,30 @@ export default function Profile() {
               </label>
             )}
           </div>
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+
+          {/* Info */}
+          <div className="flex-1 space-y-2">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
               {displayUser.name}
             </h2>
             <p className="text-slate-600 dark:text-slate-400">{displayUser.email}</p>
-            <span className="inline-block mt-2 px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-xs font-medium capitalize">
+            <span className="inline-block mt-1 px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-xs font-medium capitalize">
               {displayUser.role}
             </span>
+
+            {!isEditing && (
+              <div className="flex flex-col sm:flex-row gap-2 pt-3">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="btn btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+                >
+                  <HiPencil className="w-4 h-4" />
+                  Edit Profile
+                </button>
+                <ChangePasswordButton authUser={authUser} />
+              </div>
+            )}
           </div>
-          {!isEditing && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsEditing(true)}
-                className="btn btn-primary flex items-center gap-2"
-              >
-                <HiPencil className="w-4 h-4" />
-                Edit Profile
-              </button>
-              <ChangePasswordButton authUser={authUser} />
-            </div>
-          )}
         </div>
       </motion.div>
 
@@ -171,12 +179,13 @@ export default function Profile() {
         className="card"
       >
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Profile Information</h3>
+
         {isEditing ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="label">Full Name</label>
               <input
-                className="input"
+                className="input w-full"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
@@ -185,7 +194,7 @@ export default function Profile() {
             <div>
               <label className="label">Email</label>
               <input
-                className="input"
+                className="input w-full"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -195,21 +204,25 @@ export default function Profile() {
             <div>
               <label className="label">Student ID</label>
               <input
-                className="input"
+                className="input w-full"
                 value={formData.studentId}
                 onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
               />
             </div>
-            {/* Password changes handled on the separate Change Password page */}
-            <div className="flex gap-2 pt-2">
-              <button type="submit" className="btn btn-primary flex-1 flex items-center justify-center gap-2" disabled={loading}>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="submit"
+                className="btn btn-primary flex-1 flex items-center justify-center gap-2"
+                disabled={loading}
+              >
                 <HiCheck className="w-4 h-4" />
                 {loading ? 'Saving...' : 'Save Changes'}
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
-                className="btn btn-outline flex items-center justify-center gap-2"
+                className="btn btn-outline flex-1 flex items-center justify-center gap-2"
               >
                 <HiXMark className="w-4 h-4" />
                 Cancel
@@ -217,7 +230,7 @@ export default function Profile() {
             </div>
           </form>
         ) : (
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Name</p>
               <p className="font-medium text-slate-900 dark:text-white">{displayUser.name}</p>
@@ -234,19 +247,19 @@ export default function Profile() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Role</p>
               <p className="font-medium text-slate-900 dark:text-white capitalize">{displayUser.role}</p>
             </div>
-            <div>
-              <button
-                  onClick={handleLogout}
-                  className="btn btn-outline btn-sm flex items-center gap-2"
-                >
-                  <HiArrowRightOnRectangle className="w-4 h-4" />
-                  <span className="hidden lg:inline">Logout</span>
-                </button>
-            </div>
-            
           </div>
-          
         )}
+
+        {/* Logout (visible in both modes) */}
+        <div className="mt-6 flex justify-center sm:justify-end">
+          <button
+            onClick={handleLogout}
+            className="btn btn-outline flex items-center gap-2 w-full sm:w-auto"
+          >
+            <HiArrowRightOnRectangle className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
       </motion.div>
     </div>
   )

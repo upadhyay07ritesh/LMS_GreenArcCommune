@@ -213,32 +213,50 @@ export const listStudents = asyncHandler(async (req, res) => {
    ✅ Create Student + Auto Enroll
 ------------------------------------------- */
 export const createStudent = asyncHandler(async (req, res) => {
-  const { name, email, phone, course, dob, studentId, password } = req.body;
+  const { name, email, phone, course, dob, password } = req.body;
 
-  if (!name || !email || !studentId || !course)
-    return res.status(400).json({ message: "Missing required fields" });
+  // 🧩 Validation
+  if (!name || !email || !course)
+    return res.status(400).json({ message: "Missing required fields (name, email, or course)" });
 
+  // 🎯 Find course by ID or title
   const selectedCourse = await Course.findOne({
     $or: [{ _id: course }, { title: course }],
   });
   if (!selectedCourse)
     return res.status(404).json({ message: "Selected course not found" });
 
+  // 🚫 Prevent duplicate student emails
   const existingUser = await User.findOne({ email });
   if (existingUser)
     return res.status(400).json({ message: "Email already registered" });
 
+  // 🔢 Auto-generate Student ID in format: GACSTD000001
+  const lastStudent = await User.findOne({ role: "student" })
+    .sort({ createdAt: -1 })
+    .select("studentId");
+   const BASE_ID = 678900;
+  let nextNumber = BASE_ID+1;
+  if (lastStudent?.studentId) {
+    const match = lastStudent.studentId.match(/\d+$/);
+    if (match) nextNumber = parseInt(match[0]) + 1;
+  }
+
+  const newStudentId = `GACSTD${String(nextNumber).padStart(6, "0")}`;
+
+  // 🔐 Create new student
   const newStudent = await User.create({
-    name,
-    email,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
     phone,
     dob,
     role: "student",
-    studentId,
+    studentId: newStudentId,
     password,
     status: "active",
   });
 
+  // 🧮 Auto enroll the student
   await Enrollment.create({
     user: newStudent._id,
     course: selectedCourse._id,
@@ -247,9 +265,19 @@ export const createStudent = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     message: "Student created and enrolled successfully",
-    student: newStudent,
+    student: {
+      id: newStudent._id,
+      name: newStudent.name,
+      email: newStudent.email,
+      phone: newStudent.phone,
+      studentId: newStudent.studentId,
+      course: selectedCourse.title,
+      status: newStudent.status,
+      createdAt: newStudent.createdAt,
+    },
   });
 });
+
 
 /* -------------------------------------------
    ✅ Update Student Status
