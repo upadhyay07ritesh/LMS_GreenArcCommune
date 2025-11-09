@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { myEnrollments, fetchCourses } from "../../slices/courseSlice.js";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import api from "../../api/axios.js";
 import {
   HiBookOpen,
@@ -13,50 +13,82 @@ import {
   HiSparkles,
   HiClock,
   HiTrophy,
+  HiSun,
+  HiMoon,
 } from "react-icons/hi2";
 
-export default function Dashboard() {
+export default function StudentDashboard() {
   const dispatch = useDispatch();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { enrollments, items } = useSelector((s) => s.courses);
   const { user } = useSelector((s) => s.auth);
   const [profile, setProfile] = useState(null);
   const [liveSessions, setLiveSessions] = useState([]);
+  const [greeting, setGreeting] = useState("Hello");
+  const [icon, setIcon] = useState(
+    <HiSparkles className="w-5 h-5 text-yellow-300" />
+  );
 
-
-  // ✅ Fetch Enrollments and Courses
+  // =======================================================
+  // INIT: Fetch everything
+  // =======================================================
   useEffect(() => {
-    dispatch(myEnrollments());
-    dispatch(fetchCourses());
-  }, [dispatch]);
-
-  // ✅ Fetch Profile Data
-  useEffect(() => {
-    const fetchProfile = async () => {
+    const initDashboard = async () => {
       try {
         const { data } = await api.get("/student/profile");
         setProfile(data);
+        dispatch(myEnrollments());
+        dispatch(fetchCourses());
+        const sessionRes = await api.get("/student/live-sessions");
+        setLiveSessions(sessionRes.data || []);
       } catch (err) {
-        console.error("Failed to fetch profile:", err);
+        console.warn("⚠️ Dashboard init failed:", err.message);
       }
     };
-    fetchProfile();
+    initDashboard();
+  }, [dispatch]);
+
+  // =======================================================
+  // GREETING MESSAGE
+  // =======================================================
+  // 🕐 Function to get current greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12)
+      return {
+        text: "Good Morning",
+        icon: <HiSun className="w-5 h-5 text-yellow-300" />,
+      };
+    else if (hour < 18)
+      return {
+        text: "Good Afternoon",
+        icon: <HiSparkles className="w-5 h-5 text-pink-300" />,
+      };
+    else
+      return {
+        text: "Good Evening",
+        icon: <HiMoon className="w-5 h-5 text-blue-200" />,
+      };
+  };
+
+  // ⏱️ Update every minute (live greeting)
+  useEffect(() => {
+    const updateGreeting = () => {
+      const { text, icon } = getGreeting();
+      setGreeting(text);
+      setIcon(icon);
+    };
+
+    updateGreeting(); // initial call
+    const interval = setInterval(updateGreeting, 60000); // update every 1 min
+
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-  const fetchLiveSessions = async () => {
-    try {
-      const { data } = await api.get("/student/live-sessions");
-      setLiveSessions(data);
-    } catch (err) {
-      console.error("❌ Failed to fetch sessions:", err);
-    }
-  };
-  
-  fetchLiveSessions();
-}, []);
-
-
-  // ✅ Stats Calculations
+  // =======================================================
+  // STATS
+  // =======================================================
   const totalEnrollments = enrollments.length;
   const completedCourses = enrollments.filter((e) => e.progress === 100).length;
   const inProgressCourses = enrollments.filter(
@@ -75,7 +107,6 @@ export default function Dashboard() {
       label: "Total Enrollments",
       value: totalEnrollments,
       icon: HiBookOpen,
-      gradient: "from-blue-500 to-blue-600",
       lightBg: "bg-blue-50 dark:bg-blue-950/30",
       textColor: "text-blue-600 dark:text-blue-400",
     },
@@ -83,7 +114,6 @@ export default function Dashboard() {
       label: "In Progress",
       value: inProgressCourses,
       icon: HiChartBar,
-      gradient: "from-yellow-500 to-yellow-600",
       lightBg: "bg-yellow-50 dark:bg-yellow-950/30",
       textColor: "text-yellow-600 dark:text-yellow-400",
     },
@@ -91,7 +121,6 @@ export default function Dashboard() {
       label: "Completed",
       value: completedCourses,
       icon: HiCheckCircle,
-      gradient: "from-green-500 to-green-600",
       lightBg: "bg-green-50 dark:bg-green-950/30",
       textColor: "text-green-600 dark:text-green-400",
     },
@@ -99,276 +128,285 @@ export default function Dashboard() {
       label: "Avg Progress",
       value: `${avgProgress}%`,
       icon: HiAcademicCap,
-      gradient: "from-primary-500 to-primary-600",
       lightBg: "bg-primary-50 dark:bg-primary-950/30",
       textColor: "text-primary-600 dark:text-primary-400",
     },
   ];
-
+  // =======================================================
+  // MAIN UI
+  // =======================================================
   return (
-    <div className="space-y-8 animate-fade-in overflow-x-hidden">
-      {/* Welcome Section */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 rounded-2xl shadow-xl"
-      >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
+    <div className="relative min-h-screen bg-slate-50 dark:bg-slate-900">
+      {/* MAIN CONTENT AREA */}
+      <div className="pt-10 w-full max-w-[95vw] sm:max-w-[90vw] mx-auto flex flex-col gap-4 sm:gap-6 overflow-x-hidden">
+        {/* 🌈 Welcome Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="
+        relative overflow-hidden
+        bg-gradient-to-br from-green-600 via-emerald-600 to-green-700
+        rounded-2xl shadow-lg text-white
+        p-6 sm:p-8 border border-white/10
+      "
+        >
+          {/* Decorative background glow */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none"></div>
 
-        <div className="relative p-8">
-          <div className="flex items-start justify-between gap-4 sm:gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <HiSparkles className="w-6 h-6 text-yellow-300" />
-                <span className="text-primary-100 text-sm font-medium">
+          {/* Foreground content */}
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
+            <div className="flex-1 min-w-[220px]">
+              <div className="flex items-center gap-2 mb-2">
+                {icon}
+                <span className="text-sm font-medium text-green-50/90">
                   Welcome back!
                 </span>
               </div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                Hello, {profile?.name || user?.name}! 👋
-              </h2>
-              <p className="text-primary-100 text-lg max-w-2xl">
-                Continue your learning journey and achieve your goals.
+
+              {/* 🔄 Animated Greeting */}
+              <AnimatePresence mode="wait">
+                <motion.h2
+                  key={greeting}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.4 }}
+                  className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight leading-snug mb-1"
+                >
+                  {greeting}, {profile?.name || user?.name || "Learner"}! 👋
+                </motion.h2>
+              </AnimatePresence>
+
+              <p className="text-sm sm:text-base text-green-50/90 max-w-md">
+                Continue your learning journey and achieve your goals today.
               </p>
             </div>
+
             {completedCourses > 0 && (
-              <div className="hidden sm:flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-3 rounded-xl border border-white/30">
-                <HiTrophy className="w-6 h-6 text-yellow-300" />
+              <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm px-4 py-3 rounded-xl border border-white/30 shadow-inner">
+                <HiTrophy className="w-6 h-6 text-yellow-300 drop-shadow" />
                 <div>
-                  <p className="text-xs text-primary-100">Completed</p>
-                  <p className="text-xl font-bold text-white">
+                  <p className="text-[11px] text-green-50/80">
+                    Courses Completed
+                  </p>
+                  <p className="text-lg sm:text-2xl font-extrabold text-white">
                     {completedCourses}
                   </p>
                 </div>
               </div>
             )}
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* LIVE SESSIONS SECTION */}
-<motion.div
-  initial={{ opacity: 0, x: 20 }}
-  animate={{ opacity: 1, x: 0 }}
-  transition={{ delay: 0.8 }}
-  className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
->
-  <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Upcoming Live Sessions</h3>
-  </div>
-  <div className="p-6 space-y-3">
-    {liveSessions.length === 0 ? (
-      <p className="text-slate-500 dark:text-slate-400">No upcoming sessions</p>
-    ) : (
-      liveSessions.map((session) => (
-        <div key={session._id} className="flex items-center justify-between border-b border-slate-200 pb-3 last:border-none">
-          <div>
-            <h4 className="font-semibold text-slate-900 dark:text-white">{session.title}</h4>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {new Date(session.date).toLocaleString()}
-            </p>
-          </div>
-          <a
-            href={session.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary text-sm"
-          >
-            Join Live
-          </a>
-        </div>
-      ))
-    )}
-  </div>
-</motion.div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {stats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 + 0.2 }}
-              className="group relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-200 dark:border-slate-700"
-            >
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-2xl`}
-              ></div>
-              <div className="relative">
+        {/* 📊 Statistics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          {stats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-white dark:bg-slate-800 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border border-slate-200 dark:border-slate-700"
+              >
                 <div
-                  className={`${stat.lightBg} w-14 h-14 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}
+                  className={`${stat.lightBg} w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center mb-2`}
                 >
-                  <Icon className={`w-7 h-7 ${stat.textColor}`} />
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.textColor}`} />
                 </div>
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
                   {stat.label}
                 </p>
-                <p className="text-3xl font-bold text-slate-900 dark:text-white">
+                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
                   {stat.value}
                 </p>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+              </motion.div>
+            );
+          })}
+        </div>
 
-      {/* Two Column Layout (My Courses + Available Courses) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* My Courses */}
+        {/* 🕒 Upcoming Live Sessions */}
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.6 }}
-          className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700"
         >
-          <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
+          <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              Upcoming Live Sessions
+            </h3>
+          </div>
+          <div className="p-3 sm:p-4 space-y-2">
+            {liveSessions.length === 0 ? (
+              <p className="text-center text-slate-500 text-sm">
+                No upcoming sessions
+              </p>
+            ) : (
+              liveSessions.map((s) => (
+                <div
+                  key={s._id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3 last:border-none"
+                >
+                  <div>
+                    <h4 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+                      {s.title}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-500">
+                      {new Date(s.date).toLocaleString()}
+                    </p>
+                  </div>
+                  <a
+                    href={s.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary text-xs sm:text-sm px-3 py-1.5"
+                  >
+                    Join Live
+                  </a>
+                </div>
+              ))
+            )}
+          </div>
+        </motion.div>
+
+        {/* 🎓 Courses Section */}
+        <div className="flex flex-col lg:flex-row gap-5">
+          {/* MY COURSES */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
+          >
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
               <div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   My Courses
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   Track your learning progress
                 </p>
               </div>
               <Link
                 to="/student/courses"
-                className="flex items-center gap-1 px-4 py-2 bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-950/50 transition-colors font-medium text-sm"
+                className="text-sm px-3 py-1.5 bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-100 transition"
               >
                 View all
-                <HiArrowRight className="w-4 h-4" />
               </Link>
             </div>
-          </div>
 
-          <div className="p-6">
-            {enrollments.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 mx-auto mb-4 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                  <HiBookOpen className="w-10 h-10 text-slate-400 dark:text-slate-500" />
-                </div>
-                <p className="text-slate-600 dark:text-slate-400 mb-4 font-medium">
-                  No enrollments yet
-                </p>
-                <Link
-                  to="/student/courses"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-                >
-                  <HiSparkles className="w-5 h-5" />
-                  Browse courses
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {enrollments.slice(0, 5).map((e) => (
+            <div className="p-4 sm:p-5">
+              {enrollments.length === 0 ? (
+                <div className="text-center py-6">
+                  <HiBookOpen className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                  <p className="text-slate-500 dark:text-slate-400 mb-3">
+                    No enrollments yet
+                  </p>
                   <Link
-                    key={e._id || e.id}
-                    to={`/student/courses/${e?.course?._id || e?.courseId}`}
-                    className="group block p-5 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary-300 dark:hover:border-primary-700 hover:shadow-lg transition-all duration-200"
+                    to="/student/courses"
+                    className="btn btn-primary text-sm"
                   >
-                    <div className="flex items-start justify-between gap-3 sm:gap-4 mb-3 min-w-0">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors mb-1 break-words">
-                          {e?.course?.title || e?.title || 'Course'}
-                        </h4>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                          <HiClock className="w-3 h-3" />
-                          <span>In progress</span>
+                    Browse Courses
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {enrollments.slice(0, 4).map((e) => (
+                    <Link
+                      key={e._id}
+                      to={`/student/courses/${e?.course?._id}`}
+                      className="block border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:border-primary-300 transition"
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-slate-900 dark:text-white truncate">
+                            {e?.course?.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <HiClock className="w-3 h-3" /> In Progress
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary-600 dark:text-primary-400">
+                            {e.progress}%
+                          </p>
+                          {e.progress === 100 && (
+                            <HiCheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                          )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <span className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                          {e.progress}%
-                        </span>
-                        {e.progress === 100 && (
-                          <HiCheckCircle className="w-5 h-5 text-green-500" />
-                        )}
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 mt-2 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary-500 to-primary-600 transition-all"
+                          style={{ width: `${e.progress}%` }}
+                        ></div>
                       </div>
-                    </div>
-                    <div className="relative w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                      <div
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500"
-                        style={{ width: `${e.progress}%` }}
-                      >
-                        <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </motion.div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
 
-        {/* Available Courses */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.7 }}
-          className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
-        >
-          <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
+          {/* AVAILABLE COURSES */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.5 }}
+            className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
+          >
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
               <div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   Available Courses
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   Explore new learning opportunities
                 </p>
               </div>
               <Link
                 to="/student/courses"
-                className="flex items-center gap-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors font-medium text-sm"
+                className="text-sm px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 transition"
               >
                 View all
-                <HiArrowRight className="w-4 h-4" />
               </Link>
             </div>
-          </div>
 
-          <div className="p-6">
-            {items.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 mx-auto mb-4 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                  <HiBookOpen className="w-10 h-10 text-slate-400 dark:text-slate-500" />
-                </div>
-                <p className="text-slate-600 dark:text-slate-400 font-medium">
+            <div className="p-4 sm:p-5 space-y-3">
+              {items.length === 0 ? (
+                <p className="text-center text-slate-500 dark:text-slate-400">
                   No courses available
                 </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {items.slice(0, 5).map((c) => (
+              ) : (
+                items.slice(0, 4).map((c) => (
                   <Link
                     key={c._id}
                     to={`/student/courses/${c._id}`}
-                    className="group flex items-center justify-between p-4 border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all duration-200"
+                    className="flex justify-between items-center border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition"
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                        <HiBookOpen className="w-6 h-6 text-white" />
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-md bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white">
+                        <HiBookOpen className="w-4 h-4" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate break-words">
+                      <div className="flex flex-col">
+                        <h4 className="font-semibold text-slate-900 dark:text-white truncate">
                           {c.title}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {c.category} • {c.difficulty}
                         </p>
                       </div>
                     </div>
-                    <HiArrowRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                    <HiArrowRight className="w-5 h-5 text-slate-400" />
                   </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </motion.div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

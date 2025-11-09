@@ -1,6 +1,2 @@
-POST http://localhost:5000/api/otp/send-otp
-Content-Type: application/json
-
-{
-  "email": "upadhyay07ritesh@gmail.com"
-}
+POST http://192.168.1.66:5000/api/livesessions/autosession
+x-cron-secret: greenarc_auto_123

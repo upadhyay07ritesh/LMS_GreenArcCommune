@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { ToastContainer } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 import Login from "./pages/auth/Login.jsx";
 import Signup from "./pages/auth/Signup.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
@@ -21,6 +23,8 @@ import CourseLiveSessions from "./pages/admin/CourseLiveSessions.jsx";
 import StudentDetail from "./pages/admin/StudentDetail.jsx";
 import ManageAdmins from "./pages/admin/ManageAdmins.jsx";
 import AdminDetail from "./pages/admin/AdminDetail.jsx";
+import Messages from "./pages/student/MessagesSidebar.jsx";
+import LiveSessions from "./pages/student/LiveSessions.jsx";
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
@@ -43,6 +47,8 @@ export default function App() {
             />
             <Route path="/student/courses" element={<StudentCourses />} />
             <Route path="/student/courses/:id" element={<CourseDetail />} />
+            <Route path="/student/messages" element={<Messages />} />
+            <Route path="/student/live-sessions" element={<LiveSessions />} />
           </Route>
         </Route>
 
@@ -68,6 +74,16 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={4000}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        pauseOnHover
+        draggable
+        theme="colored"
+      />
     </>
   );
 }

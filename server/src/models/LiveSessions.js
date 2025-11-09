@@ -6,7 +6,6 @@ const liveSessionSchema = new mongoose.Schema(
     title: { type: String, required: true },
     link: { type: String, required: true },
     date: { type: Date, required: true },
-    expiresAt: { type: Date },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
