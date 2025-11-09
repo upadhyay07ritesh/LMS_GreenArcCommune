@@ -205,9 +205,28 @@ export const addAdmin = asyncHandler(async (req, res) => {
    ✅ List All Students
 ------------------------------------------- */
 export const listStudents = asyncHandler(async (req, res) => {
+  // 1️⃣ Get all students
   const students = await User.find({ role: "student" }).select("-password");
-  res.json(students);
+
+  // 2️⃣ Get all enrollments and populate course
+  const enrollments = await Enrollment.find()
+    .populate("course", "title _id")
+    .populate("user", "_id");
+
+  // 3️⃣ Merge course info into each student
+  const enrichedStudents = students.map((student) => {
+    const enrolled = enrollments.find(
+      (enr) => enr.user && enr.user._id.toString() === student._id.toString()
+    );
+    return {
+      ...student.toObject(),
+      course: enrolled?.course || null, // attach course object (title + _id)
+    };
+  });
+
+  res.json(enrichedStudents);
 });
+
 
 /* -------------------------------------------
    ✅ Create Student + Auto Enroll
@@ -235,6 +254,7 @@ export const createStudent = asyncHandler(async (req, res) => {
   const lastStudent = await User.findOne({ role: "student" })
     .sort({ createdAt: -1 })
     .select("studentId");
+    
    const BASE_ID = 678900;
   let nextNumber = BASE_ID+1;
   if (lastStudent?.studentId) {
@@ -314,6 +334,7 @@ export const deleteStudent = asyncHandler(async (req, res) => {
     studentId: student._id,
   });
 });
+
 
 /* -------------------------------------------
    ✅ Analytics Dashboard

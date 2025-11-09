@@ -9,9 +9,7 @@ import os from "os";
 import { notFound, errorHandler } from "./middlewares/errorHandler.js";
 
 // 🧩 Import models & routes
-import {LiveSession} from "./models/LiveSessions.js";
 import liveSessionsRouter from "./routes/LiveSessions.routes.js";
-import { Course } from "./models/Course.js";
 import authRoutes from "./routes/auth.routes.js";
 import courseRoutes from "./routes/course.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
@@ -22,6 +20,7 @@ import testEmailRoutes from "./routes/testEmail.routes.js";
 import otpRoutes from "./routes/otp.routes.js";
 import forgotPasswordRoutes from "./routes/forgotPassword.routes.js";
 import adminManagementRoutes from "./routes/adminManagement.routes.js";
+import messageRoutes from "./routes/message.routes.js";
 
 const app = express();
 
@@ -113,6 +112,8 @@ app.use("/api/test-email", testEmailRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/auth/forgot-password", forgotPasswordRoutes);
 app.use("/api/livesessions", liveSessionsRouter);
+app.use("/api/messages", messageRoutes);
+
 
 
 /* ============================================================

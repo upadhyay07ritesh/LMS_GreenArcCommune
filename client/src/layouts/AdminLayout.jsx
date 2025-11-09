@@ -4,6 +4,7 @@ import { logout } from '../slices/authSlice.js'
 import { motion } from 'framer-motion'
 import DarkModeToggle from '../components/DarkModeToggle.jsx'
 import NotificationBanner from '../components/NotificationBanner.jsx'
+import AdminMessages from '../pages/admin/AdminMessages.jsx'
 import { HiHome, HiBookOpen, HiUsers, HiChartBar, HiLink, HiArrowRightOnRectangle, HiBars3, HiXMark, HiShieldCheck } from 'react-icons/hi2'
 import { useState } from 'react'
 
@@ -150,6 +151,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
+        <AdminMessages />
       </main>
 
       {/* Footer */}

@@ -25,6 +25,7 @@ import ManageAdmins from "./pages/admin/ManageAdmins.jsx";
 import AdminDetail from "./pages/admin/AdminDetail.jsx";
 import Messages from "./pages/student/MessagesSidebar.jsx";
 import LiveSessions from "./pages/student/LiveSessions.jsx";
+import AdminMessages from "./pages/admin/AdminMessages.jsx";
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="/student/courses/:id" element={<CourseDetail />} />
             <Route path="/student/messages" element={<Messages />} />
             <Route path="/student/live-sessions" element={<LiveSessions />} />
+            <Route path="/admin/messages" element={<AdminMessages />} />
           </Route>
         </Route>
 
