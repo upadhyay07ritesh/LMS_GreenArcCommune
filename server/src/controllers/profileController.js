@@ -14,7 +14,7 @@ export const getProfile = asyncHandler(async (req, res) => {
  * Update user profile
  */
 export const updateProfile = asyncHandler(async (req, res) => {
-  const { name, email, studentId, password, avatar } = req.body;
+  const { name, email, password, avatar } = req.body;
   const user = await User.findById(req.user._id);
   
   if (!user) return res.status(404).json({ message: 'User not found' });
@@ -27,11 +27,6 @@ export const updateProfile = asyncHandler(async (req, res) => {
     if (exists) return res.status(409).json({ message: 'Email already in use' });
     user.email = email;
     user.emailVerified = false; // Require re-verification if email changes
-  }
-  if (studentId && studentId !== user.studentId) {
-    const exists = await User.findOne({ studentId, _id: { $ne: user._id } });
-    if (exists) return res.status(409).json({ message: 'Student ID already in use' });
-    user.studentId = studentId;
   }
   if (avatar) user.avatar = avatar;
   if (password) {

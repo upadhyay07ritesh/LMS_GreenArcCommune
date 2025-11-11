@@ -145,14 +145,26 @@ export default function AddAdmin() {
     }
 
     setLoading(true);
+    
     try {
-      const submitData = new FormData();
+      // 1. First, verify the current session is still valid
+      const verifyResponse = await api.get('/auth/me');
+      if (!verifyResponse.data?.user) {
+        throw new Error('Session expired. Please log in again.');
+      }
 
+      // 2. Get current token
+      const currentToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      if (!currentToken) {
+        throw new Error("No authentication token found");
+      }
+
+      // 3. Create form data
+      const submitData = new FormData();
       submitData.append("name", formData.name);
       submitData.append("email", formData.email);
       submitData.append("role", "admin");
       submitData.append("status", "active");
-
       submitData.append(
         "adminMeta",
         JSON.stringify({
@@ -161,23 +173,74 @@ export default function AddAdmin() {
         })
       );
 
-      if (profilePhoto) submitData.append("profilePhoto", profilePhoto);
+      if (profilePhoto) {
+        submitData.append("profilePhoto", profilePhoto);
+      }
 
-      console.log(
-        "📤 Creating admin with token:",
-        localStorage.getItem("adminToken")
+      // 4. Make the API request with the current token
+      const response = await api.post(
+        "/manage-admins/admins", 
+        submitData, 
+        {
+          headers: { 
+            "Content-Type": "multipart/form-data",
+            "Authorization": `Bearer ${currentToken}`,
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          // Prevent axios from automatically following redirects
+          maxRedirects: 0,
+          validateStatus: status => status >= 200 && status < 400,
+          withCredentials: true
+        }
       );
 
-      await api.post("/manage-admins/admins", submitData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      toast.success("✅ Admin added successfully!");
-      setTimeout(() => navigate("/manage-admins"), 800);
+      // 5. Handle the response
+      if (response.data?.success) {
+        // Always ensure we have a valid token
+        if (response.data.token) {
+          localStorage.setItem("adminToken", response.data.token);
+        } else if (currentToken) {
+          // If no new token, ensure the current one is still set
+          localStorage.setItem("adminToken", currentToken);
+        }
+        
+        // Show success message
+        toast.success(response.data.message || "✅ Admin added successfully!");
+        
+        // Verify session is still valid
+        try {
+          const meResponse = await api.get('/auth/me', {
+            headers: { 'Authorization': `Bearer ${response.data.token || currentToken}` }
+          });
+          
+          if (!meResponse.data?.user) {
+            throw new Error('Session verification failed');
+          }
+          
+          // Update user data in local storage
+          localStorage.setItem('user', JSON.stringify(meResponse.data.user));
+          localStorage.setItem('userRole', meResponse.data.user.role);
+          
+        } catch (refreshError) {
+          console.warn('Session verification failed:', refreshError);
+          // If verification fails, redirect to login
+          localStorage.clear();
+          window.location.href = '/login';
+          return;
+        }
+        
+        // Redirect to admin list
+        setTimeout(() => window.location.href = "/manage-admins", 800);
+      } else {
+        throw new Error(response.data?.message || "Failed to add admin");
+      }
     } catch (error) {
-      const msg = error.response?.data?.message || "Failed to add admin";
+      console.error("Error adding admin:", error);
+      const msg = error.response?.data?.message || error.message || "Failed to add admin";
       toast.error(msg);
-      if (error.response?.data?.errors) setErrors(error.response.data.errors);
+      if (error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
+      }
     } finally {
       setLoading(false);
     }

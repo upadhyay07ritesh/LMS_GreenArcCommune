@@ -15,6 +15,7 @@ import {
   HiTrophy,
   HiSun,
   HiMoon,
+  HiXMark,
 } from "react-icons/hi2";
 
 export default function StudentDashboard() {
@@ -29,6 +30,7 @@ export default function StudentDashboard() {
   const [icon, setIcon] = useState(
     <HiSparkles className="w-5 h-5 text-yellow-300" />
   );
+  const [showBanner, setShowBanner] = useState(false);
 
   // =======================================================
   // INIT: Fetch everything
@@ -87,6 +89,43 @@ export default function StudentDashboard() {
   }, []);
 
   // =======================================================
+  // WELCOME BANNER VISIBILITY (Exactly once after login)
+  // =======================================================
+  useEffect(() => {
+    const BANNER_VISIBLE_MS = 10 * 60 * 1000; // 10 minutes
+    const SHOW_ONCE_KEY = 'showWelcomeBannerOnce';
+    const SESSION_FLAG = 'welcomeBannerShownThisSession';
+
+    // If login set the SHOW_ONCE_KEY, show now and then clear it
+    const shouldShowOnce = sessionStorage.getItem(SHOW_ONCE_KEY) === '1';
+    // Or if URL contains wb=1 (fallback trigger via navigation)
+    const params = new URLSearchParams(location.search || '');
+    const hasWbParam = params.get('wb') === '1';
+    if (shouldShowOnce || hasWbParam) {
+      sessionStorage.removeItem(SHOW_ONCE_KEY);
+      setShowBanner(true);
+      sessionStorage.setItem(SESSION_FLAG, '1');
+      const timerId = setTimeout(() => setShowBanner(false), BANNER_VISIBLE_MS);
+      return () => clearTimeout(timerId);
+    }
+
+    // If banner already shown this session, keep it hidden on refresh
+    const alreadyShown = sessionStorage.getItem(SESSION_FLAG) === '1';
+    if (alreadyShown) {
+      setShowBanner(false);
+      return;
+    }
+
+    // Default: do not auto-show unless coming from a fresh login
+    setShowBanner(false);
+  }, []);
+
+  const dismissBanner = () => {
+    // Hide for the current view; will show again on next login/page load
+    setShowBanner(false);
+  };
+
+  // =======================================================
   // STATS
   // =======================================================
   const totalEnrollments = enrollments.length;
@@ -140,64 +179,80 @@ export default function StudentDashboard() {
       {/* MAIN CONTENT AREA */}
       <div className="pt-10 w-full max-w-[95vw] sm:max-w-[90vw] mx-auto flex flex-col gap-4 sm:gap-6 overflow-x-hidden">
         {/* 🌈 Welcome Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: -15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="
-        relative overflow-hidden
-        bg-gradient-to-br from-green-600 via-emerald-600 to-green-700
-        rounded-2xl shadow-lg text-white
-        p-6 sm:p-8 border border-white/10
-      "
-        >
-          {/* Decorative background glow */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none"></div>
+        <AnimatePresence>
+          {showBanner && (
+            <motion.div
+              key="welcome-banner"
+              initial={{ opacity: 0, y: -15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="
+              relative overflow-hidden
+              bg-gradient-to-br from-green-600 via-emerald-600 to-green-700
+              rounded-2xl shadow-lg text-white
+              p-6 sm:p-8 border border-white/10
+            "
+            >
+              {/* Dismiss button */}
+              <button
+                onClick={dismissBanner}
+                className="absolute top-3 right-3 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                aria-label="Dismiss banner"
+                title="Dismiss"
+              >
+                <HiXMark className="w-5 h-5 text-white" />
+              </button>
 
-          {/* Foreground content */}
-          <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
-            <div className="flex-1 min-w-[220px]">
-              <div className="flex items-center gap-2 mb-2">
-                {icon}
-                <span className="text-sm font-medium text-green-50/90">
-                  Welcome back!
-                </span>
-              </div>
+              {/* Decorative background glow */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none"></div>
 
-              {/* 🔄 Animated Greeting */}
-              <AnimatePresence mode="wait">
-                <motion.h2
-                  key={greeting}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.4 }}
-                  className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight leading-snug mb-1"
-                >
-                  {greeting}, {profile?.name || user?.name || "Learner"}! 👋
-                </motion.h2>
-              </AnimatePresence>
+              {/* Foreground content */}
+              <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
+                <div className="flex-1 min-w-[220px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    {icon}
+                    <span className="text-sm font-medium text-green-50/90">
+                      Welcome back!
+                    </span>
+                  </div>
 
-              <p className="text-sm sm:text-base text-green-50/90 max-w-md">
-                Continue your learning journey and achieve your goals today.
-              </p>
-            </div>
+                  {/* 🔄 Animated Greeting */}
+                  <AnimatePresence mode="wait">
+                    <motion.h2
+                      key={greeting}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.4 }}
+                      className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight leading-snug mb-1"
+                    >
+                      {greeting}, {profile?.name || user?.name || "Learner"}! 👋
+                    </motion.h2>
+                  </AnimatePresence>
 
-            {completedCourses > 0 && (
-              <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm px-4 py-3 rounded-xl border border-white/30 shadow-inner">
-                <HiTrophy className="w-6 h-6 text-yellow-300 drop-shadow" />
-                <div>
-                  <p className="text-[11px] text-green-50/80">
-                    Courses Completed
-                  </p>
-                  <p className="text-lg sm:text-2xl font-extrabold text-white">
-                    {completedCourses}
+                  <p className="text-sm sm:text-base text-green-50/90 max-w-md">
+                    Continue your learning journey and achieve your goals today.
                   </p>
                 </div>
+
+                {completedCourses > 0 && (
+                  <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm px-4 py-3 rounded-xl border border-white/30 shadow-inner">
+                    <HiTrophy className="w-6 h-6 text-yellow-300 drop-shadow" />
+                    <div>
+                      <p className="text-[11px] text-green-50/80">
+                        Courses Completed
+                      </p>
+                      <p className="text-lg sm:text-2xl font-extrabold text-white">
+                        {completedCourses}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 📊 Statistics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">

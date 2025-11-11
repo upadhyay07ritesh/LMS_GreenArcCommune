@@ -20,10 +20,14 @@ export default function AdminDetail() {
 
   const loadAdmin = async () => {
     try {
-      const { data } = await api.get(`/admin-management/admins/${id}`);
-      setAdmin(data);
+      const { data } = await api.get(`/manage-admins/admins/${id}`);
+      setAdmin(data.admin);
     } catch (error) {
       console.error("Failed to fetch admin details:", error);
+      // Handle 404 or other errors
+      if (error.response?.status === 404) {
+        navigate('/admin/manage-admins', { replace: true });
+      }
     } finally {
       setLoading(false);
     }

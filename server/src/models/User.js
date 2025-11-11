@@ -50,13 +50,19 @@ userSchema.pre("save", async function (next) {
       .sort({ createdAt: -1 })
       .select("studentId");
 
-    let nextNumber = 1;
+    const defaultBase = 202500; // Our starting point
+    let nextNumber = defaultBase + 1; // First student gets 202501
+    
+    // Only try to find a higher number if we have existing students
     if (lastStudent?.studentId) {
       const match = lastStudent.studentId.match(/\d+$/);
-      if (match) nextNumber = parseInt(match[0]) + 1;
+      if (match) {
+        const lastNumber = parseInt(match[0], 10);
+        nextNumber = Math.max(lastNumber + 1, defaultBase + 1);
+      }
     }
 
-    this.studentId = `GACSTD${String(nextNumber).padStart(3, "0")}`;
+    this.studentId = `GACSTD${String(nextNumber).padStart(6, "0")}`;
   }
 
   // ✅ Auto-generate Admin ID

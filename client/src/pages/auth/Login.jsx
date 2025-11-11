@@ -34,11 +34,18 @@ export default function Login() {
 
       toast.success(`Welcome back, ${user.name || 'User'}!`)
 
+      // Ensure dashboard shows banner exactly once after this login
+      // try {
+      //   sessionStorage.setItem('showWelcomeBannerOnce', '1')
+      // } catch {}
+
       // ✅ Redirect logic based on role
       if (role === 'admin') {
         navigate('/admin/', { replace: true })
       } else if (role === 'student') {
-        navigate(location.state?.from?.pathname || '/student', { replace: true })
+        // Always land on dashboard so the Welcome Banner can render
+        const targetWithFlag = '/student?wb=1'
+        navigate(targetWithFlag, { replace: true })
       } else {
         navigate('/', { replace: true })
       }

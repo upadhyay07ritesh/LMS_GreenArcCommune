@@ -1,18 +1,30 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../slices/authSlice.js'
-import { motion } from 'framer-motion'
 import DarkModeToggle from '../components/DarkModeToggle.jsx'
 import NotificationBanner from '../components/NotificationBanner.jsx'
 import AdminMessages from '../pages/admin/AdminMessages.jsx'
-import { HiHome, HiBookOpen, HiUsers, HiChartBar, HiLink, HiArrowRightOnRectangle, HiBars3, HiXMark, HiShieldCheck } from 'react-icons/hi2'
+import {
+  HiHome,
+  HiBookOpen,
+  HiUsers,
+  HiChartBar,
+  HiLink,
+  HiArrowRightOnRectangle,
+  HiBars3,
+  HiXMark,
+  HiShieldCheck,
+  HiChevronDoubleLeft,
+  HiChevronDoubleRight
+} from 'react-icons/hi2'
 import { useState } from 'react'
 
 export default function AdminLayout() {
   const dispatch = useDispatch()
-  const { user } = useSelector(s => s.auth)
+  const { user } = useSelector((s) => s.auth)
   const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
 
   const handleLogout = () => {
     dispatch(logout())
@@ -24,144 +36,148 @@ export default function AdminLayout() {
     { path: '/admin/courses', label: 'Courses', icon: HiBookOpen },
     { path: '/admin/students', label: 'Students', icon: HiUsers },
     { path: '/admin/analytics', label: 'Analytics', icon: HiChartBar },
-    { path: "/admin/course-live-sessions", label: "Course Live Sessions", icon: HiLink },
-
+    { path: '/admin/course-live-sessions', label: 'Live Sessions', icon: HiLink },
+    { path: '/admin/manage-admins', label: 'Manage Admins', icon: HiShieldCheck },
   ]
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
-      <NotificationBanner />
-      
-      {/* Navbar */}
-      <header className="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-40 border-b border-slate-200 dark:border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center">
-                <HiShieldCheck className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-white hidden sm:block">
-                Admin Panel
-              </h1>
-            </div>
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
+      {/* ===== Sidebar ===== */}
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-40 ${
+          collapsed ? 'w-16' : 'w-64'
+        } bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 
+        flex flex-col justify-between transform transition-all duration-300 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* Top Section */}
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          {/* Sidebar Header */}
+<div className="flex items-center justify-between px-4 h-16 border-b border-slate-200 dark:border-slate-700">
+  {/* Left Section */}
+  <div className="flex items-center gap-3">
+    {/* When expanded → show logo */}
+    {!collapsed && (
+      <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center">
+        <HiShieldCheck className="w-6 h-6 text-white" />
+      </div>
+    )}
 
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => {
-                const Icon = item.icon
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      }`
-                    }
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </NavLink>
-                )
-              })}
-            </nav>
+    {/* When collapsed → show hamburger */}
+    {collapsed && (
+      <button
+        onClick={() => setCollapsed(false)}
+        className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+      >
+        <HiBars3 className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+      </button>
+    )}
 
-            {/* Right Side */}
-            <div className="flex items-center gap-3">
-              <DarkModeToggle />
-              <div className="hidden sm:flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">{user?.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Admin</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="btn btn-outline flex items-center gap-2"
+    {/* Title */}
+    {!collapsed && (
+      <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
+        Admin Panel
+      </h1>
+    )}
+  </div>
+
+  {/* Collapse Toggle (only visible when expanded) */}
+  {!collapsed && (
+    <button
+      onClick={() => setCollapsed(true)}
+      className="hidden md:flex p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+    >
+      <HiChevronDoubleLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+    </button>
+  )}
+
+  {/* Close Button (Mobile) */}
+  <button
+    onClick={() => setSidebarOpen(false)}
+    className="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+  >
+    <HiXMark className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+  </button>
+</div>
+
+          {/* Nav Items */}
+          <nav className="flex-1 px-3 py-4 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-green-100 dark:bg-primary-900/30 text-green-700 dark:text-primary-300'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`
+                  }
                 >
-                  <HiArrowRightOnRectangle className="w-4 h-4" />
-                  <span className="hidden lg:inline">Logout</span>
-                </button>
-              </div>
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
-              >
-                {mobileMenuOpen ? (
-                  <HiXMark className="w-6 h-6" />
-                ) : (
-                  <HiBars3 className="w-6 h-6" />
-                )}
-              </button>
-            </div>
-          </div>
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </NavLink>
+              )
+            })}
+          </nav>
         </div>
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+        {/* Sidebar Footer (Sticky Bottom) */}
+        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-4">
+          <div className="flex items-center justify-between mb-3">
+            {!collapsed && (
+              <div>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">{user?.name || "Administrator"}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Admin</p>
+              </div>
+            )}
+            <DarkModeToggle />
+          </div>
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ${
+              collapsed ? 'justify-center' : ''
+            }`}
           >
-            <nav className="px-4 py-2 space-y-1">
-              {navItems.map((item) => {
-                const Icon = item.icon
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      }`
-                    }
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </NavLink>
-                )
-              })}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                <div className="px-4 py-2 mb-2">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">{user?.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Admin</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  <HiArrowRightOnRectangle className="w-5 h-5" />
-                  <span>Logout</span>
-                </button>
-              </div>
-            </nav>
-          </motion.div>
-        )}
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
-        <AdminMessages />
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-sm text-slate-600 dark:text-slate-400">
-            <p>© 2025 GreenArc Commune LMS - Admin Portal</p>
-          </div>
+            <HiArrowRightOnRectangle className="w-5 h-5" />
+            {!collapsed && <span>Logout</span>}
+          </button>
         </div>
-      </footer>
+      </aside>
+
+      {/* ===== Main Content ===== */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 md:ml-${collapsed ? '20' : '0'}`}>
+        {/* Mobile Header */}
+        <header className="md:hidden flex items-center justify-between bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 h-16">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+          >
+            <HiBars3 className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+          </button>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Admin Panel</h2>
+          <DarkModeToggle />
+        </header>
+
+        {/* Notification Banner */}
+        <NotificationBanner />
+
+        {/* Main Page */}
+        <main className="flex-1 px-4 sm:px-6 py-6 lg:py-10 transition-all">
+          <Outlet />
+          <AdminMessages />
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 mt-auto">
+          <div className="px-6 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
+            © 2025 GreenArc Commune LMS - Admin Portal
+          </div>
+        </footer>
+      </div>
     </div>
   )
 }

@@ -4,6 +4,47 @@ import bcrypt from "bcryptjs";
 import { sendEmail } from "../utils/email.js";
 
 /* ============================================================
+   ✅ Get Admin by ID with Permissions
+============================================================ */
+export const getAdminWithPermissions = asyncHandler(async (req, res) => {
+  try {
+    const admin = await User.findOne({ _id: req.params.id, role: 'admin' })
+      .select('-password -passwordHistory -__v -resetOtpHash -resetOtpExpires -passwordResetToken -passwordResetExpires');
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+
+    // Ensure adminMeta exists and has the correct structure
+    if (!admin.adminMeta) {
+      admin.adminMeta = {
+        permissions: [],
+        department: ''
+      };
+    } else if (admin.adminMeta.permissions && !Array.isArray(admin.adminMeta.permissions)) {
+      // Convert to array if it's not already
+      admin.adminMeta.permissions = [admin.adminMeta.permissions];
+    } else if (!admin.adminMeta.permissions) {
+      admin.adminMeta.permissions = [];
+    }
+
+    res.status(200).json({
+      success: true,
+      admin
+    });
+  } catch (error) {
+    console.error('❌ Error fetching admin details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch admin details'
+    });
+  }
+});
+
+/* ============================================================
    ✅ List All Admins
 ============================================================ */
 export const listAdmins = asyncHandler(async (req, res) => {
@@ -112,20 +153,38 @@ export const addAdmin = asyncHandler(async (req, res) => {
     console.warn("⚠️ Email send failed, but admin will remain:", error.message);
   }
 
-  res.status(201).json({
-    message: "✅ Admin created successfully. Credentials sent via email.",
-    admin: {
-      id: admin._id,
-      name: admin.name,
-      email: admin.email,
-      adminId: admin.adminId,
-      role: admin.role,
-      department: admin.adminMeta?.department,
-      permissions: admin.adminMeta?.permissions,
-      avatar: admin.avatar,
-      createdAt: admin.createdAt,
-    },
-  });
+  // Get the current admin's token from the request
+  const currentAdminToken = req.headers.authorization?.split(' ')[1];
+  
+  // Exclude sensitive data from the response
+  const adminData = {
+    id: admin._id,
+    name: admin.name,
+    email: admin.email,
+    adminId: admin.adminId,
+    role: admin.role,
+    department: admin.adminMeta?.department,
+    permissions: admin.adminMeta?.permissions || [],
+    avatar: admin.avatar,
+    status: admin.status,
+    createdAt: admin.createdAt,
+  };
+
+  // Create a clean response object
+  const response = {
+    success: true,
+    message: "✅ Admin created successfully. Credentials have been sent via email.",
+    admin: adminData,
+    // Always include the current token to prevent session invalidation
+    token: currentAdminToken
+  };
+
+  // Send the response with a 200 status code
+  // Also set Cache-Control to prevent any caching issues
+  return res
+    .set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    .status(200)
+    .json(response);
 });
 
 /* ============================================================

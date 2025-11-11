@@ -3,301 +3,305 @@ import { User } from "../models/User.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import bcrypt from "bcryptjs";
 import { sendEmail } from "../utils/email.js";
-
+import crypto from 'crypto';
 /* -------------------------------------------
-   ✅ Get Single Admin by ID
+   ✅ Get Admin by ID
 ------------------------------------------- */
 export const getAdminById = asyncHandler(async (req, res) => {
-  const admin = await User.findById(req.params.id).select(
-    "name email role status adminId createdAt updatedAt adminMeta avatar"
+  const admin = await User.findOne({ 
+    _id: req.params.id, 
+    role: "admin" 
+  }).select(
+    "-password -passwordHistory -__v -resetOtpHash -resetOtpExpires -passwordResetToken -passwordResetExpires"
   );
 
-  if (!admin || admin.role !== "admin") {
+  if (!admin) {
     res.status(404);
     throw new Error("Admin not found");
   }
 
-  res.json(admin);
+  // Ensure adminMeta exists with proper structure
+  if (!admin.adminMeta) {
+    admin.adminMeta = {
+      permissions: [],
+      department: ""
+    };
+  } else if (!Array.isArray(admin.adminMeta.permissions)) {
+    admin.adminMeta.permissions = admin.adminMeta.permissions 
+      ? [admin.adminMeta.permissions] 
+      : [];
+  }
+
+  res.json({
+    success: true,
+    admin
+  });
 });
 
 /* -------------------------------------------
    ✅ Get Latest Admin ID
 ------------------------------------------- */
-// ✅ getLatestAdminId (Full Safe Debug Version)
-export const getLatestAdminId = async (req, res) => {
-  console.log("📡 [getLatestAdminId] Request received...");
-
-  try {
-    // 1️⃣ Verify that User model exists
-    if (!User) {
-      console.error("❌ User model is undefined!");
-      return res.status(500).json({
-        success: false,
-        message: "User model not loaded.",
-      });
-    }
-
-    // 2️⃣ Query DB for the latest admin
-    const lastAdmin = await User.findOne({ role: "admin" })
-      .sort({ createdAt: -1 })
-      .select("adminId createdAt");
-
-    console.log("🧩 lastAdmin query result:", lastAdmin);
-
-    // 3️⃣ Handle case when no admin exists yet
-    if (!lastAdmin) {
-      console.log("⚠️ No admin found — returning default ID.");
-      return res.status(200).json({
-        success: true,
-        lastId: "GACADM000",
-        nextId: "GACADM001",
-        note: "No admin found, default values returned.",
-      });
-    }
-
-    // 4️⃣ Safely compute next ID
-    const lastId = lastAdmin.adminId || "GACADM000";
-    const match = lastId.match(/\d+$/);
-    const nextNumber = match ? parseInt(match[0]) + 1 : 1;
-    const nextId = `GACADM${String(nextNumber).padStart(3, "0")}`;
-
-    console.log("✅ Computed IDs:", { lastId, nextId });
-
-    return res.status(200).json({
-      success: true,
-      lastId,
-      nextId,
-    });
-  } catch (error) {
-    console.error("💥 [getLatestAdminId] Unexpected Error:");
-    console.error(error); // Full stack trace
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch latest admin ID",
-      error: error.message,
-      stack: error.stack,
-    });
-  }
-};
-
-
-/* -------------------------------------------
-   ✅ Add New Admin
-------------------------------------------- */
-/* ============================================================
-   ✅ Add New Admin (with Permissions, Department & Avatar)
-============================================================ */
-export const addAdmin = asyncHandler(async (req, res) => {
-  const { name, email } = req.body;
-
-  // 🧩 Parse adminMeta safely (department, permissions)
-  let adminMeta = {};
-  try {
-    if (req.body.adminMeta) {
-      adminMeta =
-        typeof req.body.adminMeta === "string"
-          ? JSON.parse(req.body.adminMeta)
-          : req.body.adminMeta;
-    }
-  } catch (error) {
-    console.warn("⚠️ Invalid adminMeta JSON:", req.body.adminMeta);
-    adminMeta = {};
-  }
-
-  const profilePhoto = req.file ? `/uploads/${req.file.filename}` : "";
-
-  // 🔍 Check if admin already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(400).json({
-      message: "User with this email already exists",
-    });
-  }
-
-  // 🧮 Generate next Admin ID (GACADM###)
-  const lastAdmin = await User.findOne({ role: "admin" })
+export const getLatestAdminId = asyncHandler(async (req, res) => {
+  const lastAdmin = await User.findOne({ role: 'admin' })
     .sort({ createdAt: -1 })
-    .select("adminId");
-
+    .select('adminId');
+  
   let nextNumber = 1;
   if (lastAdmin?.adminId) {
     const match = lastAdmin.adminId.match(/\d+$/);
     if (match) nextNumber = parseInt(match[0]) + 1;
   }
+  
+  res.json({ nextId: `GACADM${String(nextNumber).padStart(3, '0')}` });
+});
 
-  const adminId = `GACADM${String(nextNumber).padStart(3, "0")}`;
+/* -------------------------------------------
+   ✅ Add New Admin
+------------------------------------------- */
+export const addAdmin = asyncHandler(async (req, res) => {
+  const { name, email, password, adminMeta } = req.body;
 
-  // 🔐 Generate secure random temporary password (plain text here!)
-  const tempPassword = Math.random().toString(36).slice(-8) || "GAC@1234TEMP";
+  // Basic validation
+  if (!name || !email || !password) {
+    res.status(400);
+    throw new Error('Please include all required fields');
+  }
 
-  // ⚡️ Create new admin — let Mongoose pre-save hook hash the password
+  // Check if admin already exists
+  const adminExists = await User.findOne({ email });
+  if (adminExists) {
+    res.status(400);
+    throw new Error('Admin already exists');
+  }
+
+  // Get the latest admin ID
+  const latestIdRes = await getLatestAdminId({}, { json: (data) => data });
+  const adminId = latestIdRes.nextId;
+
+  // Create admin
   const admin = await User.create({
-    name: name?.trim(),
-    email: email?.trim().toLowerCase(),
-    password: tempPassword, // ✅ raw password — not hashed manually!
-    role: "admin",
+    name,
+    email,
+    password,
     adminId,
-    emailVerified: false,
-    status: "active",
-    avatar: profilePhoto,
+    role: 'admin',
     adminMeta: {
-      department: adminMeta.department?.trim() || "",
-      permissions: Array.isArray(adminMeta.permissions)
-        ? adminMeta.permissions
-        : [],
+      ...adminMeta,
+      permissions: Array.isArray(adminMeta?.permissions) 
+        ? adminMeta.permissions 
+        : []
     },
+    emailVerified: true,
+    status: 'active'
   });
 
-  // 📧 Send welcome email with credentials
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h1 style="color: #0f766e;">Welcome to GreenArc LMS Admin Team</h1>
-      <p>Hello <strong>${name}</strong>,</p>
-      <p>You have been successfully added as an <strong>Administrator</strong> on the GreenArc LMS platform.</p>
-      <p>Here are your temporary login credentials:</p>
-      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <p><strong>Admin ID:</strong> ${adminId}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Temporary Password:</strong> ${tempPassword}</p>
-      </div>
-      <p><strong>Note:</strong> Please log in and update your password immediately for security reasons.</p>
-      <p>If you did not request this account, please contact the super admin.</p>
-      <hr style="margin: 30px 0; border: none; border-top: 1px solid #ccc;">
-      <p style="font-size: 12px; color: #777;">GreenArc Commune LMS Team</p>
-    </div>
-  `;
+  // Generate token
+  const token = generateToken(admin._id);
 
+  // Send welcome email
   try {
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    const resetOtpHash = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+    
+    admin.resetOtpHash = resetOtpHash;
+    admin.resetOtpExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    await admin.save();
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    
     await sendEmail({
-      to: email,
-      subject: "Welcome to GreenArc LMS Admin Team",
-      html,
-      text: `Welcome to GreenArc LMS Admin Team.
-      Your Admin ID: ${adminId}, Email: ${email}, Temporary Password: ${tempPassword}.
-      Please log in and change your password immediately.`,
+      to: admin.email,
+      subject: 'Welcome to Admin Panel - Set Your Password',
+      html: `
+        <div>
+          <h2>Welcome to Admin Panel</h2>
+          <p>Hello ${admin.name},</p>
+          <p>You have been added as an admin. Please set your password by clicking the link below:</p>
+          <a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">
+            Set Password
+          </a>
+          <p>This link will expire in 24 hours.</p>
+          <p>If you didn't request this, please contact support immediately.</p>
+        </div>
+      `
     });
   } catch (error) {
-    console.error("❌ Email send failed:", error);
-    await User.findByIdAndDelete(admin._id);
-    throw new Error("Failed to send welcome email. Admin not created.");
+    console.error('Error sending welcome email:', error);
   }
 
   res.status(201).json({
-    message: "✅ Admin created successfully. Credentials sent via email.",
+    success: true,
     admin: {
-      id: admin._id,
+      _id: admin._id,
       name: admin.name,
       email: admin.email,
       adminId: admin.adminId,
       role: admin.role,
-      department: admin.adminMeta?.department,
-      permissions: admin.adminMeta?.permissions,
-      avatar: admin.avatar,
-      createdAt: admin.createdAt,
+      adminMeta: admin.adminMeta
     },
+    token
   });
 });
 
-
 /* -------------------------------------------
-   ✅ List All Students
+   ✅ List Students
 ------------------------------------------- */
 export const listStudents = asyncHandler(async (req, res) => {
-  // 1️⃣ Get all students
   const students = await User.find({ role: "student" }).select("-password");
-
-  // 2️⃣ Get all enrollments and populate course
   const enrollments = await Enrollment.find()
     .populate("course", "title _id")
     .populate("user", "_id");
 
-  // 3️⃣ Merge course info into each student
-  const enrichedStudents = students.map((student) => {
+  const enriched = students.map((student) => {
     const enrolled = enrollments.find(
-      (enr) => enr.user && enr.user._id.toString() === student._id.toString()
+      (e) => e.user && e.user._id.toString() === student._id.toString()
     );
-    return {
-      ...student.toObject(),
-      course: enrolled?.course || null, // attach course object (title + _id)
-    };
+    return { ...student.toObject(), course: enrolled?.course || null };
   });
 
-  res.json(enrichedStudents);
+  res.json(enriched);
 });
 
-
 /* -------------------------------------------
-   ✅ Create Student + Auto Enroll
+   ✅ Create Student + Auto ID + Welcome Email
 ------------------------------------------- */
 export const createStudent = asyncHandler(async (req, res) => {
+  // Destructure only allowed fields - studentId is auto-generated
   const { name, email, phone, course, dob, password } = req.body;
 
-  // 🧩 Validation
   if (!name || !email || !course)
-    return res.status(400).json({ message: "Missing required fields (name, email, or course)" });
+    return res.status(400).json({ message: "Missing required fields" });
 
-  // 🎯 Find course by ID or title
   const selectedCourse = await Course.findOne({
     $or: [{ _id: course }, { title: course }],
   });
   if (!selectedCourse)
     return res.status(404).json({ message: "Selected course not found" });
 
-  // 🚫 Prevent duplicate student emails
   const existingUser = await User.findOne({ email });
   if (existingUser)
     return res.status(400).json({ message: "Email already registered" });
 
-  // 🔢 Auto-generate Student ID in format: GACSTD000001
-  const lastStudent = await User.findOne({ role: "student" })
-    .sort({ createdAt: -1 })
-    .select("studentId");
-    
-   const BASE_ID = 678900;
-  let nextNumber = BASE_ID+1;
-  if (lastStudent?.studentId) {
-    const match = lastStudent.studentId.match(/\d+$/);
-    if (match) nextNumber = parseInt(match[0]) + 1;
-  }
-
-  const newStudentId = `GACSTD${String(nextNumber).padStart(6, "0")}`;
-
-  // 🔐 Create new student
+  // ✅ No manual studentId here — auto generated by model
   const newStudent = await User.create({
     name: name.trim(),
     email: email.trim().toLowerCase(),
     phone,
     dob,
     role: "student",
-    studentId: newStudentId,
     password,
     status: "active",
   });
 
-  // 🧮 Auto enroll the student
   await Enrollment.create({
     user: newStudent._id,
     course: selectedCourse._id,
     progress: 0,
   });
 
+  // ✉️ Send welcome email
+  const html = `
+    <div
+  style="font-family: 'Segoe UI', Roboto, Arial, sans-serif; max-width: 650px; margin: auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);"
+>
+  <!-- Header -->
+  <div style="background-color: #14532d; text-align: center; padding: 20px;">
+    <img
+      src="https://lms.greenarccommune.com/assets/GreenArcLogo.png"
+      alt="GreenArc Commune Logo"
+      style="height: 70px; margin-bottom: 8px;"
+    />
+    <h1
+      style="margin: 0; font-size: 22px; color: #ffffff; letter-spacing: 0.5px;"
+    >
+      Welcome to GreenArc LMS
+    </h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 25px 30px;">
+    <p style="font-size: 16px; color: #111827;">
+      Hi <strong>${name}</strong>,
+    </p>
+
+    <p style="font-size: 15px; color: #374151; line-height: 1.6;">
+      Welcome aboard! You’ve been successfully enrolled in
+      <strong>${selectedCourse.title}</strong>. We’re thrilled to have you as
+      part of the GreenArc learning community.
+    </p>
+
+    <!-- Student Details Box -->
+    <div
+      style="background: #f9fafb; border: 1px solid #d1d5db; padding: 15px 20px; border-radius: 8px; margin: 20px 0;"
+    >
+      <p style="margin: 0; font-size: 14px; color: #111827;">
+        <strong>Student ID:</strong> ${newStudent.studentId}
+      </p>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #111827;">
+        <strong>Email:</strong> ${email}
+      </p>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #111827;">
+        <strong>Temporary Password:</strong> ${password}
+      </p>
+    </div>
+
+    <p style="font-size: 15px; color: #374151; line-height: 1.6;">
+      Please log in to your account using these credentials and make sure to
+      <strong>change your password</strong> after your first login for security
+      purposes.
+    </p>
+
+    <!-- CTA Button -->
+    <div style="text-align: center; margin: 30px 0;">
+      <a
+        href="https://greenarccommune.com/lms/login"
+        style="background-color: #166534; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block; letter-spacing: 0.3px;"
+      >
+        Access Your Account
+      </a>
+    </div>
+
+    <p style="font-size: 14px; color: #6b7280;">
+      If you didn’t request this enrollment, please ignore this email or contact
+      our support team immediately.
+    </p>
+
+    <p style="font-size: 13px; color: #9ca3af; margin-top: 30px;">
+      Warm regards,<br />
+      <strong style="color: #14532d;">GreenArc Commune LMS Team</strong><br />
+      <span style="font-size: 12px;">Empowering Learning Through Technology</span>
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div
+    style="background-color: #f3f4f6; color: #6b7280; text-align: center; padding: 12px; font-size: 12px;"
+  >
+    © ${new Date().getFullYear()} GreenArc Commune. All rights reserved.
+  </div>
+</div>
+  `;
+
+  try {
+    await sendEmail({
+      to: email,
+      subject: "Welcome to GreenArc LMS – Your Learning Journey Begins!",
+      html,
+      text: `Welcome ${name}, your Student ID is ${newStudent.studentId}. Course: ${selectedCourse.title}.`,
+    });
+  } catch (err) {
+    console.error("❌ Student welcome email failed:", err);
+  }
+
   res.status(201).json({
-    message: "Student created and enrolled successfully",
-    student: {
-      id: newStudent._id,
-      name: newStudent.name,
-      email: newStudent.email,
-      phone: newStudent.phone,
-      studentId: newStudent.studentId,
-      course: selectedCourse.title,
-      status: newStudent.status,
-      createdAt: newStudent.createdAt,
-    },
+    message: "Student created, enrolled, and email sent 🎉",
+    student: newStudent,
   });
 });
-
 
 /* -------------------------------------------
    ✅ Update Student Status
@@ -320,24 +324,111 @@ export const updateStudentStatus = asyncHandler(async (req, res) => {
 export const deleteStudent = asyncHandler(async (req, res) => {
   const student = await User.findOneAndDelete({
     _id: req.params.id,
-    role: "student", // ensures you’re deleting a student, not an admin
+    role: "student",
   });
 
-  if (!student) {
-    res.status(404);
-    throw new Error("Student not found or already deleted");
+  if (!student) return res.status(404).json({ message: "Student not found" });
+
+  // Send deletion email
+  const html = `
+   <div
+  style="font-family: 'Segoe UI', Roboto, Arial, sans-serif; max-width: 650px; margin: auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);"
+>
+  <!-- Header -->
+  <div style="background-color: #14532d; text-align: center; padding: 20px;">
+    <img
+      src="https://lms.greenarccommune.com/assets/GreenArcLogo.png"
+      alt="GreenArc Commune Logo"
+      style="height: 70px; margin-bottom: 8px;"
+    />
+    <h1
+      style="margin: 0; font-size: 22px; color: #ffffff; letter-spacing: 0.5px;"
+    >
+      Account Deletion Notification
+    </h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 25px 30px;">
+    <p style="font-size: 16px; color: #111827;">
+      Hello <strong>${student.name}</strong>,
+    </p>
+
+    <p style="font-size: 15px; color: #374151; line-height: 1.6;">
+      We’re writing to inform you that your <strong>GreenArc LMS student account</strong> has been
+      <span style="color: #b91c1c; font-weight: 600;">deleted</span> from our system.
+    </p>
+
+    <!-- Account Details -->
+    <div
+      style="background: #f9fafb; border: 1px solid #d1d5db; padding: 15px 20px; border-radius: 8px; margin: 20px 0;"
+    >
+      <p style="margin: 0; font-size: 14px; color: #111827;">
+        <strong>Name:</strong> ${student.name}
+      </p>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #111827;">
+        <strong>Email:</strong> ${student.email}
+      </p>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #111827;">
+        <strong>Student ID:</strong> ${student.studentId || 'N/A'}
+      </p>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #111827;">
+        <strong>Deletion Date:</strong> ${new Date().toLocaleDateString()}
+      </p>
+    </div>
+
+    <p style="font-size: 15px; color: #374151; line-height: 1.6;">
+      If you believe this deletion was made in error or wish to reactivate your
+      access, please contact our support team immediately.
+    </p>
+
+    <!-- Support CTA -->
+    <div style="text-align: center; margin: 30px 0;">
+      <a
+        href="mailto:support@greenarccommune.com"
+        style="background-color: #166534; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block;"
+      >
+        Contact Support
+      </a>
+    </div>
+
+    <p style="font-size: 14px; color: #6b7280;">
+      Thank you for being a part of the <strong>GreenArc Commune Learning
+      Community</strong>. We wish you continued success in your learning journey.
+    </p>
+
+    <p style="font-size: 12px; color: #9ca3af; margin-top: 25px;">
+      <strong>Note:</strong> This is an automated message — please do not reply
+      directly to this email.
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div
+    style="background-color: #f3f4f6; color: #6b7280; text-align: center; padding: 12px; font-size: 12px;"
+  >
+    © ${new Date().getFullYear()} GreenArc Commune. All rights reserved.
+  </div>
+</div>
+
+  `;
+
+  try {
+    await sendEmail({
+      to: student.email,
+      subject: "Your Student Account Has Been Deleted - GreenArc LMS",
+      html,
+    });
+  } catch (error) {
+    console.error("Failed to send deletion email:", error);
+    // Don't fail the request if email fails
   }
 
-  res.status(200).json({
-    success: true,
-    message: "Student deleted successfully",
-    studentId: student._id,
-  });
+  res.json({ success: true, message: "Student deleted", id: student._id });
 });
 
-
 /* -------------------------------------------
-   ✅ Analytics Dashboard
+   ✅ Analytics
 ------------------------------------------- */
 export const analytics = asyncHandler(async (req, res) => {
   const totalStudents = await User.countDocuments({ role: "student" });
@@ -349,49 +440,11 @@ export const analytics = asyncHandler(async (req, res) => {
   const activeCourses = await Course.countDocuments({ published: true });
   const totalEnrollments = await Enrollment.countDocuments();
 
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  const enrollmentsByMonth = await Enrollment.aggregate([
-    { $match: { createdAt: { $gte: sixMonthsAgo } } },
-    {
-      $group: {
-        _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-        count: { $sum: 1 },
-      },
-    },
-    { $sort: { "_id.year": 1, "_id.month": 1 } },
-  ]);
-
-  const popularCourses = await Enrollment.aggregate([
-    { $group: { _id: "$course", count: { $sum: 1 } } },
-    { $sort: { count: -1 } },
-    { $limit: 5 },
-    {
-      $lookup: {
-        from: "courses",
-        localField: "_id",
-        foreignField: "_id",
-        as: "course",
-      },
-    },
-    { $unwind: "$course" },
-    { $project: { title: "$course.title", enrollments: "$count" } },
-  ]);
-
-  const categoryStats = await Course.aggregate([
-    { $match: { published: true } },
-    { $group: { _id: "$category", count: { $sum: 1 } } },
-    { $sort: { count: -1 } },
-  ]);
-
   res.json({
     totalStudents,
     activeStudents,
     totalCourses,
     activeCourses,
     totalEnrollments,
-    enrollmentsByMonth,
-    popularCourses,
-    categoryStats,
   });
 });

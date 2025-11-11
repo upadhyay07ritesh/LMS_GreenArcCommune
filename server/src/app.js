@@ -29,7 +29,7 @@ const app = express();
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, "../uploads");
+const uploadsDir = path.join(__dirname, "../../uploads");
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -56,27 +56,22 @@ const dynamicLocalIPs = getLocalNetworkIPs();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://lms-greenarccommune.netlify.app",
-  "https://lms.greenarccommune.com",
   ...dynamicLocalIPs,
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (
-        allowedOrigins.includes(origin) ||
-        origin.startsWith("http://192.168.") ||
-        origin.startsWith("http://10.")
-      ) {
-        return callback(null, true);
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
       }
-      console.log("❌ Blocked by CORS:", origin);
-      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
 );
+
 
 /* ============================================================
    ⚙️ Core Middleware
@@ -96,7 +91,13 @@ app.get("/", (req, res) => res.send("✅ Backend server is live and running!"));
 /* ============================================================
    🖼️ Static Uploads Access
 ============================================================ */
+// Serve new uploads directory
 app.use("/uploads", express.static(uploadsDir));
+// Fallback: also serve legacy uploads (server/src/uploads) for previously uploaded files
+const legacyUploadsDir = path.join(__dirname, "../uploads");
+if (fs.existsSync(legacyUploadsDir)) {
+  app.use("/uploads", express.static(legacyUploadsDir));
+}
 
 /* ============================================================
    📦 Main API Routes

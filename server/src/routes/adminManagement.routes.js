@@ -29,7 +29,7 @@ const router = express.Router();
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadDir = path.join(__dirname, "../uploads");
+const uploadDir = path.join(__dirname, "../../uploads");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -65,40 +65,32 @@ router.get("/admins/latest-id", asyncHandler(getLatestAdminId));
 ============================================================ */
 
 // Everything after this requires authentication
-router.use(protect, authorize("admin"));
+router.use(protect);
 
 // ✅ Get all admins
-router.get("/admins", asyncHandler(listAdmins));
+router.get("/admins", authorize("admin"), asyncHandler(listAdmins));
 
 // ✅ Add new admin
 router.post(
   "/admins",
-  protect, // ✅ must come before addAdmin
-  authorize("admin", "superadmin"), // ✅ allow admin to create another admin
+  authorize("admin", "superadmin"),
   upload.single("profilePhoto"),
   asyncHandler(addAdmin)
 );
 
-// ✅ Latest Admin ID (preview)
-router.get(
-  "/admins/latest-id",
-  protect,
-  authorize("admin", "superadmin"),
-  asyncHandler(getAdminById)
-);
-
 // ✅ Get admin by ID
-router.get("/admins/:id", asyncHandler(getAdminById));
+router.get("/admins/:id", authorize("admin"), asyncHandler(getAdminById));
 
 // ✅ Update admin status
 router.patch(
   "/admins/:id/status",
+  authorize("admin", "superadmin"),
   [body("status").isIn(["active", "banned"])],
   asyncHandler(updateAdminStatus)
 );
 
 // ✅ Remove admin privileges
-router.delete("/admins/:id", asyncHandler(removeAdmin));
+router.delete("/admins/:id", authorize("admin", "superadmin"), asyncHandler(removeAdmin));
 
 // ✅ Optional file upload route
 router.post("/upload", upload.single("file"), asyncHandler(handleUpload));

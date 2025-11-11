@@ -12,16 +12,23 @@ import {
   listStudents,
   updateStudentStatus,
   analytics,
-  getAdminById,
-  getLatestAdminId,
   deleteStudent,
+  createStudent,
+  getAdminById,
 } from "../controllers/adminController.js";
-import {
-  listAdmins,
-  addAdmin,
-  updateAdminStatus,
+import { 
+  listAdmins, 
+  addAdmin, 
+  updateAdminStatus, 
   removeAdmin,
+  getAdminWithPermissions,
 } from "../controllers/adminManagement.controller.js";
+import { 
+  getMyProfile, 
+  updateProfile, 
+  removeProfileImage, 
+  updatePassword, 
+} from "../controllers/adminProfile.controller.js";
 import { User } from "../models/User.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
@@ -35,7 +42,7 @@ const router = express.Router();
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadDir = path.join(__dirname, "../uploads");
+const uploadDir = path.join(__dirname, "../../uploads");
 
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -48,9 +55,16 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
+const upload = multer({ 
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
 });
 
 /* ============================================================
@@ -72,55 +86,11 @@ router.patch(
   asyncHandler(updateStudentStatus)
 );
 
-// ✅ Add student and auto-enroll in a course
+// ✅ Add student and auto-enroll in a course (with welcome email)
 router.post(
   "/students",
   upload.single("profilePhoto"),
-  asyncHandler(async (req, res) => {
-    const { name, email, phone, course, dob, studentId, password } = req.body;
-    console.log("📥 Incoming Student Data:", req.body);
-
-    // Duplicate email check
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ message: "Email already exists" });
-
-    // Verify course validity
-    const selectedCourse = await Course.findById(course);
-    if (!selectedCourse)
-      return res.status(404).json({ message: "Selected course not found" });
-
-    // Create student
-    const newUser = await User.create({
-      name,
-      email,
-      phone,
-      dob,
-      studentId,
-      password,
-      role: "student",
-      status: "active",
-      avatar: req.file ? `/uploads/${req.file.filename}` : "",
-    });
-
-    // Create enrollment
-    await Enrollment.create({
-      user: newUser._id,
-      course: selectedCourse._id,
-      completedContentIds: [],
-    });
-
-    res.status(201).json({
-      message: "Student added and enrolled successfully!",
-      student: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        studentId: newUser.studentId,
-        course: selectedCourse.title,
-      },
-    });
-  })
+  asyncHandler(createStudent)
 );
 
 // ✅ Get latest student ID
@@ -132,7 +102,19 @@ router.get(
         .sort({ createdAt: -1 })
         .select("studentId");
 
-      const lastId = lastStudent?.studentId || "GAC123000";
+      const defaultBase = 202500; // Our starting point
+      let nextNumber = defaultBase + 1; // First student gets 202501
+      
+      // Only try to find a higher number if we have existing students
+      if (lastStudent?.studentId) {
+        const match = lastStudent.studentId.match(/\d+$/);
+        if (match) {
+          const lastNumber = parseInt(match[0], 10);
+          nextNumber = Math.max(lastNumber + 1, defaultBase + 1);
+        }
+      }
+      
+      const lastId = `GACSTD${String(nextNumber).padStart(6, "0")}`;
       res.json({ lastId });
     } catch (error) {
       console.error("❌ Error fetching latest student ID:", error);
@@ -156,14 +138,18 @@ router.get(
       "title category difficulty thumbnail"
     );
 
-    res.json({
-      ...student.toObject(),
-      enrolledCourses: enrollments.map((e) => ({
+    const enrolledCourses = enrollments
+      .filter((e) => !!e.course)
+      .map((e) => ({
         _id: e.course._id,
         title: e.course.title,
         category: e.course.category,
         difficulty: e.course.difficulty,
-      })),
+      }));
+
+    res.json({
+      ...student.toObject(),
+      enrolledCourses,
     });
   })
 );
@@ -172,14 +158,42 @@ router.delete("/students/:id", asyncHandler(deleteStudent));
    👑 ADMIN MANAGEMENT
 ============================================================ */
 
-// ✅ List all admins
-router.get("/admins", protect, authorize("admin", "superadmin"), listAdmins);
-// ✅ Add new admin
-router.post("/admins", protect, authorize("admin", "superadmin"), upload.single("profilePhoto"), asyncHandler(addAdmin));
+// Admin management routes
+router.route('/manage-admins')
+  .get(protect, authorize('super-admin'), listAdmins)
+  .post(protect, authorize('super-admin'), upload.single('profilePhoto'), addAdmin);
 
+router.route('/manage-admins/:id')
+  .get(protect, getAdminWithPermissions)
+  .put(protect, authorize('super-admin'), updateAdminStatus)
+  .delete(protect, authorize('super-admin'), removeAdmin);
+
+// Admin profile routes
+router.get('/auth/me', protect, asyncHandler(getMyProfile));
+router.put(
+  '/auth/update-profile', 
+  protect, 
+  upload.single('profilePhoto'),
+  asyncHandler(updateProfile)
+);
+router.delete(
+  '/auth/remove-profile-image', 
+  protect, 
+  asyncHandler(removeProfileImage)
+);
+router.put(
+  '/auth/update-password', 
+  protect, 
+  [
+    body('currentPassword', 'Current password is required').notEmpty(),
+    body('newPassword', 'New password must be at least 8 characters').isLength({ min: 8 }),
+    body('confirmPassword', 'Passwords do not match').custom((value, { req }) => value === req.body.newPassword)
+  ],
+  asyncHandler(updatePassword)
+);
 
 // ✅ Get latest admin ID
-router.get("/admins/latest-id", protect, authorize("admin", "superadmin"), async (req, res) => {
+router.get("/admins/latest-id", protect, authorize("admin"), async (req, res) => {
   const lastAdmin = await User.findOne({ role: "admin" }).sort({ createdAt: -1 });
   let nextNumber = 1;
   if (lastAdmin?.adminId) {

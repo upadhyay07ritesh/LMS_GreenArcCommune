@@ -7,7 +7,7 @@ import { HiCalendar, HiLink, HiAcademicCap, HiTrash } from "react-icons/hi2";
 export default function CourseLiveSessions() {
   const [courses, setCourses] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [formData, setFormData] = useState({ course: "", title: "", link: "", date: "", expiresAt: "" });
+  const [formData, setFormData] = useState({ course: "", title: "", link: "", date: "" });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function CourseLiveSessions() {
       await api.post("/admin/live-sessions", formData);
       toast.success("Session saved successfully!");
       fetchSessions();
-      setFormData({ course: "", title: "", link: "", date: "", expiresAt: "" });
+      setFormData({ course: "", title: "", link: "", date: "" });
     } catch {
       toast.error("Failed to save session");
     } finally {
@@ -77,23 +77,45 @@ export default function CourseLiveSessions() {
               ))}
             </select>
           </div>
+
           <div>
             <label className="label">Session Title</label>
-            <input name="title" value={formData.title} onChange={handleChange} required className="input" placeholder="Session title" />
+            <input
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              required
+              className="input"
+              placeholder="Session title"
+            />
           </div>
+
           <div>
             <label className="label">Meeting Link</label>
-            <input name="link" type="url" value={formData.link} onChange={handleChange} required className="input" placeholder="https://meet.google.com/..." />
+            <input
+              name="link"
+              type="url"
+              value={formData.link}
+              onChange={handleChange}
+              required
+              className="input"
+              placeholder="https://meet.google.com/..."
+            />
           </div>
+
           <div>
             <label className="label">Date & Time</label>
-            <input name="date" type="datetime-local" value={formData.date} onChange={handleChange} required className="input" />
-          </div>
-          <div>
-            <label className="label">Expires At</label>
-            <input name="expiresAt" type="datetime-local" value={formData.expiresAt} onChange={handleChange} className="input" />
+            <input
+              name="date"
+              type="datetime-local"
+              value={formData.date}
+              onChange={handleChange}
+              required
+              className="input"
+            />
           </div>
         </div>
+
         <button type="submit" disabled={loading} className="btn btn-primary">
           {loading ? "Saving..." : "Save Session"}
         </button>

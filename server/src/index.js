@@ -34,6 +34,7 @@ const localIP = getLocalIP();
    🚀 Start the Server
 ============================================================ */
 async function start() {
+  console.log("Loaded Mongo URI:", process.env.MONGODB_URI);
   await connectDB();
 
   // ✅ Important: listen on 0.0.0.0 to allow mobile access

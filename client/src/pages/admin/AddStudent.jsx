@@ -41,24 +41,28 @@ export default function AddStudent() {
     fetchCourses();
   }, []);
 
-  // ✅ Generate serial Student ID from backend
+  // Get the next student ID from the server
   const fetchStudentId = async () => {
     try {
-      const res = await api.get("/admin/students/latest-id"); // Backend should return latest ID
-      const lastId = res.data?.lastId || "GAC123000"; // fallback
-      const nextNum = parseInt(lastId.replace("GAC", "")) + 1;
-      setStudentId(`GAC${nextNum.toString().padStart(6, "0")}`);
+      const res = await api.get("/admin/students/latest-id");
+      // Use the ID directly from the server
+      if (res.data?.lastId) {
+        setStudentId(res.data.lastId);
+      } else {
+        // Fallback in case the server doesn't return an ID
+        setStudentId("GACSTD202501");
+      }
     } catch (err) {
-      console.error("Failed to fetch last student ID", err);
-      toast.warning("Could not fetch latest student ID, using default pattern");
-      setStudentId(`GAC${Math.floor(100000 + Math.random() * 900000)}`);
+      console.error("Failed to fetch student ID", err);
+      toast.warning("Could not fetch student ID, using default pattern");
+      setStudentId("GACSTD202501");
     }
   };
 
-// ✅ Fetch courses for dropdown (include _id)
-const fetchCourses = async () => {
-  try {
-    const res = await api.get("/admin/courses");
+  // ✅ Fetch courses for dropdown (include _id)
+  const fetchCourses = async () => {
+    try {
+      const res = await api.get("/admin/courses");
 
     // 🧠 Convert API data to { value: _id, label: name }
     const formattedCourses = res.data.map((course) => ({
@@ -75,8 +79,42 @@ const fetchCourses = async () => {
 
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, selectionStart } = e.target;
+    
+    if (name === 'dob') {
+      // Store cursor position
+      const cursorPosition = selectionStart;
+      const previousLength = formData.dob?.length || 0;
+      
+      // Remove all non-digit characters
+      let digits = value.replace(/\D/g, '');
+      
+      // Format as user types
+      let formatted = '';
+      for (let i = 0; i < digits.length; i++) {
+        if (i === 2) formatted += '/';
+        if (i === 4) formatted += '/';
+        if (i === 8) break; // Limit to DD/MM/YYYY format
+        formatted += digits[i];
+      }
+      
+      // Update the input value
+      e.target.value = formatted;
+      
+      // Adjust cursor position
+      const addedChars = formatted.length - previousLength;
+      const newCursorPos = cursorPosition + (addedChars > 0 ? 1 : 0);
+      
+      // Set cursor position after the state update
+      setTimeout(() => {
+        e.target.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+      
+      setFormData((prev) => ({ ...prev, [name]: formatted }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+    
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -112,21 +150,55 @@ const fetchCourses = async () => {
       newErrors.phone = "Invalid 10-digit number";
 
     if (!formData.course.trim()) newErrors.course = "Course enrolled is required";
-    if (!formData.dob.trim()) newErrors.dob = "Date of birth is required";
+    
+    // Date of Birth validation
+    if (!formData.dob.trim()) {
+      newErrors.dob = "Date of birth is required";
+    } else {
+      const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d{2}$/;
+      if (!dateRegex.test(formData.dob)) {
+        newErrors.dob = "Please enter date in DD/MM/YYYY format";
+      } else {
+        // Additional validation for valid date (e.g., not 31/02/2023)
+        const [day, month, year] = formData.dob.split('/').map(Number);
+        const date = new Date(year, month - 1, day);
+        if (date.getDate() !== day || date.getMonth() + 1 !== month || date.getFullYear() !== year) {
+          newErrors.dob = "Please enter a valid date";
+        }
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Generate password: 4 initials of name + year of birth
+  // Generate password: 4 initials of name + year of birth
   const generatePassword = () => {
     const initials = formData.name
       .trim()
       .toLowerCase()
-      .replace(/\s+/g, "")
+      .split(' ')
+      .map(word => word[0])
+      .join('')
       .slice(0, 4);
-    const year = formData.dob ? new Date(formData.dob).getFullYear() : "";
+
+    // Extract year from DD/MM/YYYY format
+    let year = "";
+    if (formData.dob) {
+      const parts = formData.dob.split('/');
+      if (parts.length === 3) {
+        year = parts[2]; // Get the year part (third part in DD/MM/YYYY)
+      }
+    }
+
     return `${initials}${year}`;
+  };
+
+  const formatDateForBackend = (dateStr) => {
+    if (!dateStr) return "";
+    const [day, month, year] = dateStr.split("/");
+    // Convert to YYYY-MM-DD format for the backend
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   };
 
   const handleSubmit = async (e) => {
@@ -145,7 +217,8 @@ const fetchCourses = async () => {
       submitData.append("email", formData.email);
       submitData.append("phone", formData.phone);
       submitData.append("course", formData.course);
-      submitData.append("dob", formData.dob);
+      // Convert DD/MM/YYYY to YYYY-MM-DD for the backend
+      submitData.append("dob", formatDateForBackend(formData.dob));
       submitData.append("role", "student");
       submitData.append("studentId", studentId);
       submitData.append("password", autoPassword);
@@ -280,11 +353,13 @@ const fetchCourses = async () => {
               />
 
               <FormInput
-                label="Date of Birth"
+                label="Date of Birth (DD/MM/YYYY)"
                 name="dob"
-                type="date"
+                type="text"
                 value={formData.dob}
                 onChange={handleChange}
+                placeholder="DD/MM/YYYY"
+                maxLength="10"
                 required
                 error={errors.dob}
                 icon={HiCalendar}

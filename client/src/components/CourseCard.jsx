@@ -1,14 +1,16 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { HiClock, HiAcademicCap, HiBookOpen } from 'react-icons/hi2';
+import { HiAcademicCap, HiBookOpen } from 'react-icons/hi2';
+import { assetBaseURL } from '../api/axios.js';
 
 export default function CourseCard({ course, onEnroll, isEnrolled }) {
-  const difficultyColors = {
-    Beginner: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    Intermediate: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    Advanced: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  };
-
+  const showStrikethroughPrice = isEnrolled && course?.showSlashedPriceOnGrant;
+  const formattedPrice = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(course.price || 0));
   const categoryIcons = {
     Programming: '💻',
     Design: '🎨',
@@ -28,15 +30,52 @@ export default function CourseCard({ course, onEnroll, isEnrolled }) {
       {/* Thumbnail */}
       <div className="h-48 bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center overflow-hidden relative">
         {course.thumbnail ? (
-          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+          <img src={course.thumbnail?.startsWith('/uploads') ? `${assetBaseURL}${course.thumbnail}` : course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
         ) : (
           <div className="text-white text-6xl">{categoryIcons[course.category] || '📚'}</div>
         )}
         <div className="absolute top-3 right-3 flex gap-2">
-          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${difficultyColors[course.difficulty] || difficultyColors.Beginner}`}>
-            {course.difficulty}
-          </span>
+          {isEnrolled ? (
+            <motion.span
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              whileHover={{ scale: 1.03 }}
+              className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+            >
+              Already Enrolled
+            </motion.span>
+          ) : course.isPaid ? (
+            <motion.span
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              whileHover={{ scale: 1.03 }}
+              className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+            >
+              Paid
+            </motion.span>
+          ) : (
+            <motion.span
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              whileHover={{ scale: 1.03 }}
+              className="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+            >
+              Free
+            </motion.span>
+          )}
         </div>
+        {course.isPaid && Number(course.price) > 0 && (
+          <div className="absolute bottom-3 left-3">
+            <span
+              className={`px-3 py-1.5 rounded-full text-sm md:text-base font-semibold bg-white/95 text-slate-900 border border-slate-200 shadow-sm inline-flex items-center dark:bg-slate-900/90 dark:text-white dark:border-slate-700 ${showStrikethroughPrice ? 'line-through opacity-90' : ''}`}
+            >
+              {formattedPrice}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content */}

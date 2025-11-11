@@ -206,7 +206,7 @@ export default function ManageAdmins() {
                 <tr
                   key={admin._id}
                   className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition cursor-pointer"
-                  onClick={() => navigate(`/admin/admin/${admin._id}`)} // ✅ Go to AdminDetail
+                  onClick={() => navigate(`/admin/${admin._id}`)} // ✅ Go to AdminDetail
                 >
                   <td className="px-6 py-4 text-sm">
                     {startIndex + index + 1}

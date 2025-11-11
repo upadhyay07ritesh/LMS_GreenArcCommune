@@ -6,7 +6,7 @@ import {
   markProgress,
   enrollCourse,
 } from "../../slices/courseSlice.js";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom"; // ✅ Added useNavigate
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import {
@@ -15,12 +15,14 @@ import {
   HiAcademicCap,
   HiCheckCircle,
   HiClock,
+  HiCurrencyRupee,
+  HiArrowLeft, // ✅ Added Back Icon
 } from "react-icons/hi2";
 
 export default function CourseDetail() {
   const { id } = useParams();
   const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // ✅ Initialize navigation
   const { current, enrollments, loading } = useSelector((s) => s.courses);
   const enrollment = enrollments.find((e) => e.course._id === id);
   const [localProgress, setLocalProgress] = useState(0);
@@ -39,6 +41,11 @@ export default function CourseDetail() {
   }, [enrollment, current]);
 
   const handleEnroll = async () => {
+    if (current.isPaid || (current.price && current.price > 0)) {
+      toast.warning("🛒 This is a paid course. Please purchase it first!");
+      return;
+    }
+
     const res = await dispatch(enrollCourse(id));
     if (res.meta.requestStatus === "fulfilled") {
       toast.success("Successfully enrolled!");
@@ -52,6 +59,7 @@ export default function CourseDetail() {
     enrollment?.completedContentIds?.some(
       (x) => x.toString() === contentId.toString()
     );
+
   const totalContents = current?.contents?.length || 0;
   const completedCount = enrollment?.completedContentIds?.length || 0;
   const progress = localProgress;
@@ -68,8 +76,19 @@ export default function CourseDetail() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Course Header */}
+    <div className="pt-12 space-y-6 animate-fade-in">
+      {/* ✅ Back Button */}
+      <div className="flex items-center mb-2">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-slate-700 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition"
+        >
+          <HiArrowLeft className="w-5 h-5" />
+          <span className="font-medium">Back</span>
+        </button>
+      </div>
+
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -77,14 +96,27 @@ export default function CourseDetail() {
       >
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
                 {current.category || "General"}
               </span>
               <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
                 {current.difficulty || "Beginner"}
               </span>
+
+              {/* ✅ Price Badge */}
+              {current.isPaid || (current.price && current.price > 0) ? (
+                <span className="px-3 py-1 bg-yellow-400 text-slate-800 rounded-full text-sm font-semibold flex items-center gap-1">
+                  <HiCurrencyRupee className="w-4 h-4" />{" "}
+                  {current.price ? current.price : "Paid"}
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-semibold">
+                  Free
+                </span>
+              )}
             </div>
+
             <h1 className="text-3xl font-bold mb-2">{current.title}</h1>
             <p className="text-primary-100 mb-4">
               {current.description || "No description available"}
@@ -115,9 +147,21 @@ export default function CourseDetail() {
           <p className="text-slate-600 dark:text-slate-400 mb-4">
             You need to enroll in this course to access the content.
           </p>
-          <button onClick={handleEnroll} className="btn btn-primary">
-            Enroll Now
-          </button>
+
+          {current.isPaid || (current.price && current.price > 0) ? (
+            <button
+              onClick={() =>
+                toast.info("🛍 Please purchase this course to enroll.")
+              }
+              className="btn btn-warning"
+            >
+              Purchase Required
+            </button>
+          ) : (
+            <button onClick={handleEnroll} className="btn btn-primary">
+              Enroll Now
+            </button>
+          )}
         </motion.div>
       ) : (
         <motion.div
@@ -135,7 +179,7 @@ export default function CourseDetail() {
           </div>
           <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3">
             <motion.div
-              key={progress} // 👈 ensures re-animation
+              key={progress}
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -153,6 +197,7 @@ export default function CourseDetail() {
         <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
           Course Content
         </h2>
+
         {current.contents && current.contents.length > 0 ? (
           current.contents.map((content, idx) => {
             const Icon =
@@ -212,64 +257,6 @@ export default function CourseDetail() {
                         <HiDocumentText className="w-5 h-5" />
                         Open PDF Document
                       </a>
-                    )}
-
-                    {content.type === "quiz" && (
-                      <div className="mt-3 p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          Quiz with {content.quiz?.questions?.length || 0}{" "}
-                          question
-                          {content.quiz?.questions?.length !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    )}
-
-                    {enrollment && (
-                      <button
-                        onClick={async () => {
-                          if (isContentCompleted) return;
-
-                          const res = await dispatch(
-                            markProgress({
-                              enrollmentId: enrollment.id,
-                              contentId: content._id,
-                            })
-                          );
-
-                          if (res.meta.requestStatus === "fulfilled") {
-                            toast.success("Progress updated!");
-
-                            // ✅ Update local progress instantly
-                            const newCompleted =
-                              (enrollment?.completedContentIds?.length || 0) +
-                              1;
-                            const total = current.contents.length;
-                            setLocalProgress(
-                              Math.min(
-                                100,
-                                Math.round((newCompleted / total) * 100)
-                              )
-                            );
-
-                            // ✅ Sync Redux globally so Dashboard updates too
-                            dispatch(myEnrollments());
-                          } else {
-                            toast.error("Failed to mark as complete");
-                          }
-                        }}
-                        className={`mt-3 btn ${
-                          isContentCompleted ? "btn-outline" : "btn-primary"
-                        } flex items-center gap-2`}
-                      >
-                        {isContentCompleted ? (
-                          <>
-                            <HiCheckCircle className="w-4 h-4" />
-                            Completed
-                          </>
-                        ) : (
-                          "Mark as Complete"
-                        )}
-                      </button>
                     )}
                   </div>
                 </div>
