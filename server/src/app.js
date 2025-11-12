@@ -1,10 +1,7 @@
-// server/src/app.js
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -35,7 +32,6 @@ const app = express();
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const uploadsDir = path.join(__dirname, "../../uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
@@ -45,20 +41,16 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 function getLocalNetworkIPs() {
   const interfaces = os.networkInterfaces();
   const ips = [];
-
   Object.values(interfaces).forEach((ifaceList) => {
     ifaceList.forEach((iface) => {
-      if (iface.family === "IPv4" && !iface.internal) {
+      if (iface.family === "IPv4" && !iface.internal)
         ips.push(`http://${iface.address}:5173`);
-      }
     });
   });
-
   return ips;
 }
 
 const dynamicLocalIPs = getLocalNetworkIPs();
-
 const allowedOrigins = [
   "http://localhost:5173",
   "https://lms.greenarccommune.com",
@@ -89,49 +81,68 @@ app.use(
     exposedHeaders: ["Content-Disposition"],
   })
 );
-
-// Enable CORS preflight
 app.options("*", cors());
 
 /* ============================================================
-   ⚙️ Middleware Setup (Security + Performance)
+   ⚙️ Core Middleware
 ============================================================ */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
-// 🧩 Safe Helmet Config (no CORS conflict)
-app.use(
-  helmet({
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false,
-  })
-);
+/* ============================================================
+   🧠 Safe Optional Middleware (Helmet, Compression, RateLimit)
+============================================================ */
 
-// 🧩 Compression — Safe Dynamic Import
-let compression;
+// 🛡️ Helmet (Security Headers)
 try {
-  const module = await import("compression");
-  compression = module.default;
-  app.use(compression());
-  console.log("✅ Compression enabled successfully");
+  const helmetModule = await import("helmet");
+  const helmet = helmetModule.default;
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: false,
+    })
+  );
+  console.log("✅ Helmet security enabled");
 } catch (err) {
-  console.warn("⚠️ Compression module not available, skipping gzip.");
-  // Fallback no-op (so app doesn’t crash)
+  console.warn("⚠️ Helmet not available, skipping security headers.");
   app.use((req, res, next) => next());
 }
 
-// 🧩 Rate Limiter to prevent abuse
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200,
-    message: "Too many requests, please try again later.",
-  })
-);
+// 🗜️ Compression (Performance)
+try {
+  const compressionModule = await import("compression");
+  const compression = compressionModule.default;
+  app.use(compression());
+  console.log("✅ Compression enabled");
+} catch (err) {
+  console.warn("⚠️ Compression module not available, skipping gzip.");
+  app.use((req, res, next) => next());
+}
 
-// 🧩 Disable cache for APIs (always fresh data)
+// 🚦 Rate Limiting (Prevent Abuse)
+try {
+  const rateLimitModule = await import("express-rate-limit");
+  const rateLimit = rateLimitModule.default;
+  const limiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: process.env.NODE_ENV === "production" ? 150 : 500,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many requests, please try again later.",
+  });
+  app.use(limiter);
+  console.log("✅ Rate limiting active");
+} catch (err) {
+  console.warn("⚠️ express-rate-limit not available, skipping rate limiter.");
+  app.use((req, res, next) => next());
+}
+
+/* ============================================================
+   🧱 No Cache for APIs (always fresh)
+============================================================ */
 app.use("/api", (req, res, next) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -151,9 +162,8 @@ app.get("/", (req, res) => res.send("✅ GreenArc LMS Backend is Live!"));
 ============================================================ */
 app.use("/uploads", express.static(uploadsDir));
 const legacyUploadsDir = path.join(__dirname, "../uploads");
-if (fs.existsSync(legacyUploadsDir)) {
+if (fs.existsSync(legacyUploadsDir))
   app.use("/uploads", express.static(legacyUploadsDir));
-}
 
 /* ============================================================
    📦 Routes
