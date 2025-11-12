@@ -55,7 +55,9 @@ function getLocalNetworkIPs() {
 const dynamicLocalIPs = getLocalNetworkIPs();
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://lms-greenarccommune.netlify.app",
+  "https://lms.greenarccommune.com",
+  "https://lms-greenarccommune-2.onrender.com",
+  `http://${process.env.ALLOWED_DEV_IP}:5173`,
   ...dynamicLocalIPs,
 ];
 
@@ -65,13 +67,17 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.log("🚫 Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   })
 );
 
+// Also handle preflight requests explicitly
+app.options("*", cors());
 
 /* ============================================================
    ⚙️ Core Middleware
