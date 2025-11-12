@@ -5,6 +5,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { sendEmail } from "../utils/email.js";
 import crypto from 'crypto';
+import { validateAndCleanEnrollments } from "../utils/cleanupEnrollments.js";
 /* -------------------------------------------
    ✅ Get Admin by ID
 ------------------------------------------- */
@@ -268,7 +269,7 @@ export const createStudent = asyncHandler(async (req, res) => {
     <!-- CTA Button -->
     <div style="text-align: center; margin: 30px 0;">
       <a
-        href="https://greenarccommune.com/lms/login"
+        href="https://lms.greenarccommune.com/login"
         style="background-color: #166534; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block; letter-spacing: 0.3px;"
       >
         Access Your Account
@@ -441,6 +442,9 @@ export const deleteStudent = asyncHandler(async (req, res) => {
    ✅ Analytics
 ------------------------------------------- */
 export const analytics = asyncHandler(async (req, res) => {
+  // 🧹 Clean invalid enrollments before analytics calculation
+  await validateAndCleanEnrollments(true); // true = auto-delete invalid ones
+
   const totalStudents = await User.countDocuments({ role: "student" });
   const activeStudents = await User.countDocuments({
     role: "student",
@@ -449,6 +453,44 @@ export const analytics = asyncHandler(async (req, res) => {
   const totalCourses = await Course.countDocuments();
   const activeCourses = await Course.countDocuments({ published: true });
   const totalEnrollments = await Enrollment.countDocuments();
+  const uniqueEnrolledStudents = (await Enrollment.distinct("user")).length;
+
+  // 🟢 Enrollment trends
+  const enrollmentsByMonth = await Enrollment.aggregate([
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { "_id.year": 1, "_id.month": 1 } },
+    { $limit: 6 },
+  ]);
+
+  // 🟣 Category stats
+  const categoryStats = await Course.aggregate([
+    { $group: { _id: "$category", count: { $sum: 1 } } },
+  ]);
+
+  // 🟡 Popular courses
+  const popularCourses = await Enrollment.aggregate([
+    { $group: { _id: "$course", enrollments: { $sum: 1 } } },
+    {
+      $lookup: {
+        from: "courses",
+        localField: "_id",
+        foreignField: "_id",
+        as: "course",
+      },
+    },
+    { $unwind: "$course" },
+    { $project: { title: "$course.title", enrollments: 1 } },
+    { $sort: { enrollments: -1 } },
+    { $limit: 5 },
+  ]);
 
   res.json({
     totalStudents,
@@ -456,5 +498,9 @@ export const analytics = asyncHandler(async (req, res) => {
     totalCourses,
     activeCourses,
     totalEnrollments,
+    uniqueEnrolledStudents,
+    enrollmentsByMonth,
+    categoryStats,
+    popularCourses,
   });
 });

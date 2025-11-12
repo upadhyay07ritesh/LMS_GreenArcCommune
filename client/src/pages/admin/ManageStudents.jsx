@@ -15,6 +15,7 @@ import {
   HiAcademicCap,
   HiPlus,
 } from "react-icons/hi2";
+import TradingTrendLoader from "../../components/ui/ProTradingLoader.jsx";
 
 export default function ManageStudents() {
   const navigate = useNavigate();
@@ -106,19 +107,19 @@ export default function ManageStudents() {
     return colors[index];
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000); // Simulate startup delay
+    return () => clearTimeout(timer);
+  }, []);
+
   if (loading) {
+    // ✅ Main Loader Displayed Globally
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600 dark:border-slate-700 dark:border-t-primary-500"></div>
-          <p className="mt-4 text-slate-600 dark:text-slate-400 font-medium">
-            Loading students...
-          </p>
-        </div>
+      <div className="flex justify-center items-center min-h-screen bg-white dark:bg-slate-900">
+        <TradingTrendLoader size={220} color="#22c55e" />
       </div>
     );
   }
-  
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -244,28 +245,29 @@ export default function ManageStudents() {
       </motion.div>
 
       {/* Table Header with Count */}
-        {filteredStudents.length > 0 && (
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Showing{" "}
-              <span className="font-semibold text-slate-900 dark:text-white">
-                {startIndex + 1}
-              </span>{" "}
-              to{" "}
-              <span className="font-semibold text-slate-900 dark:text-white">
-                {Math.min(
-                  startIndex + currentStudents.length,
-                  filteredStudents.length
-                )} Records
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold text-slate-900 dark:text-white">
-                {filteredStudents.length}
-              </span>{" "}
-              students
-            </p>
-          </div>
-        )}
+      {filteredStudents.length > 0 && (
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Showing{" "}
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {startIndex + 1}
+            </span>{" "}
+            to{" "}
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {Math.min(
+                startIndex + currentStudents.length,
+                filteredStudents.length
+              )}{" "}
+              Records
+            </span>{" "}
+            of{" "}
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {filteredStudents.length}
+            </span>{" "}
+            students
+          </p>
+        </div>
+      )}
 
       {/* Students Table */}
       <motion.div

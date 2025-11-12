@@ -1,3 +1,4 @@
+// server/src/app.js
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -9,26 +10,21 @@ import { fileURLToPath } from "url";
 import { notFound, errorHandler } from "./middlewares/errorHandler.js";
 
 // 🧩 Routes
-import liveSessionsRouter from "./routes/LiveSessions.routes.js";
 import authRoutes from "./routes/auth.routes.js";
-import courseRoutes from "./routes/course.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import courseRoutes from "./routes/course.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
-import testEmailRoutes from "./routes/testEmail.routes.js";
 import otpRoutes from "./routes/otp.routes.js";
 import forgotPasswordRoutes from "./routes/forgotPassword.routes.js";
-import adminManagementRoutes from "./routes/adminManagement.routes.js";
 import messageRoutes from "./routes/message.routes.js";
+import liveSessionsRouter from "./routes/LiveSessions.routes.js";
 
-// ============================================================
-// ⚡ Initialize app
-// ============================================================
 const app = express();
 
 /* ============================================================
-   📁 Path Setup
+   📁 File + Path Setup
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +52,6 @@ const allowedOrigins = [
   "https://lms.greenarccommune.com",
   "https://lms-greenarccommune-1.onrender.com",
   "https://lms-greenarccommune-2.onrender.com",
-  `http://${process.env.ALLOWED_DEV_IP}:5173`,
   ...dynamicLocalIPs,
 ];
 
@@ -81,7 +76,6 @@ app.use(
     exposedHeaders: ["Content-Disposition"],
   })
 );
-app.options("*", cors());
 
 /* ============================================================
    ⚙️ Core Middleware
@@ -94,8 +88,6 @@ app.use(morgan("dev"));
 /* ============================================================
    🧠 Safe Optional Middleware (Helmet, Compression, RateLimit)
 ============================================================ */
-
-// 🛡️ Helmet (Security Headers)
 try {
   const helmetModule = await import("helmet");
   const helmet = helmetModule.default;
@@ -105,48 +97,50 @@ try {
       contentSecurityPolicy: false,
     })
   );
-  console.log("✅ Helmet security enabled");
-} catch (err) {
-  console.warn("⚠️ Helmet not available, skipping security headers.");
-  app.use((req, res, next) => next());
+  console.log("✅ Helmet enabled");
+} catch {
+  console.warn("⚠️ Helmet missing, skipping...");
 }
 
-// 🗜️ Compression (Performance)
 try {
   const compressionModule = await import("compression");
   const compression = compressionModule.default;
   app.use(compression());
   console.log("✅ Compression enabled");
-} catch (err) {
-  console.warn("⚠️ Compression module not available, skipping gzip.");
-  app.use((req, res, next) => next());
+} catch {
+  console.warn("⚠️ Compression missing, skipping...");
 }
 
-// 🚦 Rate Limiting (Prevent Abuse)
 try {
   const rateLimitModule = await import("express-rate-limit");
   const rateLimit = rateLimitModule.default;
-  const limiter = rateLimit({
-    windowMs: 10 * 60 * 1000, // 10 minutes
-    max: process.env.NODE_ENV === "production" ? 150 : 500,
+
+  // ⚡ Skip rate limit for admin or internal requests
+  const globalLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    limit: process.env.NODE_ENV === "production" ? 150 : 500,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.originalUrl.startsWith("/api/admin"),
     message: "Too many requests, please try again later.",
   });
-  app.use(limiter);
-  console.log("✅ Rate limiting active");
-} catch (err) {
-  console.warn("⚠️ express-rate-limit not available, skipping rate limiter.");
-  app.use((req, res, next) => next());
+
+  app.use(globalLimiter);
+  console.log("✅ Rate limit active (skips /api/admin)");
+} catch {
+  console.warn("⚠️ express-rate-limit missing, skipping...");
 }
 
 /* ============================================================
-   🧱 No Cache for APIs (always fresh)
+   🧱 Cache Control
 ============================================================ */
 app.use("/api", (req, res, next) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+  // Only apply no-cache to non-admin routes
+  if (!req.originalUrl.startsWith("/api/admin")) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
   next();
 });
 
@@ -161,25 +155,27 @@ app.get("/", (req, res) => res.send("✅ GreenArc LMS Backend is Live!"));
    🖼️ Static Files
 ============================================================ */
 app.use("/uploads", express.static(uploadsDir));
-const legacyUploadsDir = path.join(__dirname, "../uploads");
-if (fs.existsSync(legacyUploadsDir))
-  app.use("/uploads", express.static(legacyUploadsDir));
 
 /* ============================================================
    📦 Routes
 ============================================================ */
 app.use("/api/auth", authRoutes);
-app.use("/api/courses", courseRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/manage-admins", adminManagementRoutes);
+app.use("/api/courses", courseRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/test-email", testEmailRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/auth/forgot-password", forgotPasswordRoutes);
 app.use("/api/livesessions", liveSessionsRouter);
 app.use("/api/messages", messageRoutes);
+
+/* ============================================================
+   ❌ Fallback for Unknown Routes
+============================================================ */
+app.all("*", (req, res) => {
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
 
 /* ============================================================
    🚨 Error Handling

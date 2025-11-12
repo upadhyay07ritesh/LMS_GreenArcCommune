@@ -1,24 +1,35 @@
 // server/src/models/User.js
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { Enrollment } from "./Enrollment.js";
 
+/* ============================================================
+   🧠 USER SCHEMA
+   Supports: Students & Admins
+   Includes: Auto-ID, password history, cleanup hooks
+============================================================ */
 const userSchema = new mongoose.Schema(
   {
+    /* 🔹 Basic Info */
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     password: { type: String, required: true, select: false, minlength: 6 },
 
+    /* 🔹 Role Management */
     role: { type: String, enum: ["student", "admin"], default: "student" },
+    status: { type: String, enum: ["active", "banned"], default: "active" },
 
-    // ✅ FINAL FIX — no duplicate index warning now
-    studentId: { type: String },
-    adminId: { type: String },
+    /* 🔹 Identity IDs */
+    studentId: { type: String, unique: true, sparse: true },
+    adminId: { type: String, unique: true, sparse: true },
 
+    /* 🔹 Admin Metadata */
     adminMeta: {
       department: { type: String },
       permissions: [{ type: String }],
     },
 
+    /* 🔹 Student Details */
     course: { type: String },
     enrolledCourses: [
       {
@@ -26,12 +37,11 @@ const userSchema = new mongoose.Schema(
         ref: "Course",
       },
     ],
-
     dob: Date,
-    status: { type: String, enum: ["active", "banned"], default: "active" },
-    emailVerified: { type: Boolean, default: false },
     avatar: { type: String, default: "" },
+    emailVerified: { type: Boolean, default: false },
 
+    /* 🔹 Security Fields */
     resetOtpHash: { type: String, select: false },
     resetOtpExpires: { type: Date },
     passwordResetToken: { type: String, select: false },
@@ -42,6 +52,9 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+/* ============================================================
+   🧩 PRE-SAVE HOOKS
+============================================================ */
 userSchema.pre("save", async function (next) {
   // ✅ Auto-generate Student ID
   if (this.isNew && this.role === "student" && !this.studentId) {
@@ -50,15 +63,14 @@ userSchema.pre("save", async function (next) {
       .sort({ createdAt: -1 })
       .select("studentId");
 
-    const defaultBase = 202500; // Our starting point
-    let nextNumber = defaultBase + 1; // First student gets 202501
-    
-    // Only try to find a higher number if we have existing students
+    const base = 202500; // base series
+    let nextNumber = base + 1;
+
     if (lastStudent?.studentId) {
       const match = lastStudent.studentId.match(/\d+$/);
       if (match) {
         const lastNumber = parseInt(match[0], 10);
-        nextNumber = Math.max(lastNumber + 1, defaultBase + 1);
+        nextNumber = Math.max(lastNumber + 1, base + 1);
       }
     }
 
@@ -67,21 +79,21 @@ userSchema.pre("save", async function (next) {
 
   // ✅ Auto-generate Admin ID
   if (this.isNew && this.role === "admin" && !this.adminId) {
-    let nextNumber = 1;
     const lastAdmin = await this.constructor
       .findOne({ role: "admin", adminId: { $exists: true } })
       .sort({ createdAt: -1 })
       .select("adminId")
       .lean();
 
+    let nextNumber = 1;
     if (lastAdmin?.adminId) {
       const match = lastAdmin.adminId.match(/\d+$/);
-      if (match) nextNumber = parseInt(match[0]) + 1;
+      if (match) nextNumber = parseInt(match[0], 10) + 1;
     }
     this.adminId = `GACADM${String(nextNumber).padStart(3, "0")}`;
   }
 
-  // ✅ Hash password + manage history
+  // ✅ Hash password + manage password history
   if (this.isModified("password")) {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(this.password, salt);
@@ -97,6 +109,9 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
+/* ============================================================
+   🧩 INSTANCE METHODS
+============================================================ */
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
 };
@@ -108,7 +123,24 @@ userSchema.methods.isPasswordReused = async function (newPassword) {
   return false;
 };
 
-// ⚡ Clean, optimized indexes
+/* ============================================================
+   🧹 AUTO-CLEANUP HOOK (when user is deleted)
+============================================================ */
+userSchema.post("findOneAndDelete", async function (doc) {
+  if (!doc) return;
+  try {
+    const deleted = await Enrollment.deleteMany({ user: doc._id });
+    if (deleted.deletedCount > 0) {
+      console.log(`🧹 Cleaned ${deleted.deletedCount} enrollments of deleted user ${doc.email}`);
+    }
+  } catch (err) {
+    console.error("❌ Enrollment cleanup failed:", err.message);
+  }
+});
+
+/* ============================================================
+   ⚙️ INDEXES
+============================================================ */
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ studentId: 1 }, { unique: true, sparse: true });
 userSchema.index({ adminId: 1 }, { unique: true, sparse: true });
@@ -116,4 +148,7 @@ userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ createdAt: -1 });
 
+/* ============================================================
+   ✅ EXPORT MODEL
+============================================================ */
 export const User = mongoose.model("User", userSchema);

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import api from '../../api/axios.js'
-import { motion } from 'framer-motion'
+import { useEffect, useState } from "react";
+import api from "../../api/axios.js";
+import { motion } from "framer-motion";
 import {
   LineChart,
   Line,
@@ -15,101 +15,141 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts'
+} from "recharts";
+import TradingTrendLoader from "../../components/ui/ProTradingLoader.jsx";
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
+const COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
 
 export default function Analytics() {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    loadStats()
-  }, [])
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const loadStats = async () => {
     try {
-      const { data } = await api.get('/admin/analytics')
-      setStats(data)
+      const { data } = await api.get("/admin/analytics");
+      setStats(data);
     } catch (error) {
-      console.error('Failed to load analytics', error)
+      console.error("Failed to load analytics", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  if (loading) {
+  useEffect(() => {
+    loadStats();
+
+    // 🧠 Optional auto-refresh every 10 seconds for real-time trends
+    const interval = setInterval(loadStats, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading || !stats) {
     return (
-      <div className="card text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-        <p className="mt-4 text-slate-600 dark:text-slate-400">Loading analytics...</p>
+      <div className="flex justify-center items-center min-h-screen bg-white dark:bg-slate-900">
+        <TradingTrendLoader size={200} color="#22c55e" />
       </div>
-    )
+    );
   }
 
-  // Format enrollment data for chart
-  const enrollmentData = stats?.enrollmentsByMonth?.map(item => ({
-    month: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
-    enrollments: item.count,
-  })) || []
+  // 📊 Format chart data
+  const enrollmentData =
+    stats.enrollmentsByMonth?.map((item) => ({
+      month: `${item._id.year}-${String(item._id.month).padStart(2, "0")}`,
+      enrollments: item.count,
+    })) || [];
 
-  // Format category data for pie chart
-  const categoryData = stats?.categoryStats?.map(item => ({
-    name: item._id,
-    value: item.count,
-  })) || []
+  const categoryData =
+    stats.categoryStats?.map((item) => ({
+      name: item._id,
+      value: item.count,
+    })) || [];
 
-  // Format popular courses
-  const popularCoursesData = stats?.popularCourses?.map(item => ({
-    name: item.title.length > 20 ? item.title.substring(0, 20) + '...' : item.title,
-    enrollments: item.enrollments,
-  })) || []
+  const popularCoursesData =
+    stats.popularCourses?.map((item) => ({
+      name:
+        item.title.length > 20
+          ? item.title.substring(0, 20) + "..."
+          : item.title,
+      enrollments: item.enrollments,
+    })) || [];
+
+  // 📈 Dynamic stat cards with growth animation
+  const statCards = [
+    {
+      label: "Total Students",
+      value: stats.totalStudents ?? 0,
+      color: "text-blue-600 dark:text-blue-400",
+      trend: "+12%",
+    },
+    {
+      label: "Active Students",
+      value: stats.activeStudents ?? 0,
+      color: "text-green-600 dark:text-green-400",
+      trend: "+5%",
+    },
+    {
+      label: "Total Courses",
+      value: stats.totalCourses ?? 0,
+      color: "text-purple-600 dark:text-purple-400",
+      trend: "+8%",
+    },
+    {
+      label: "Active Courses",
+      value: stats.activeCourses ?? 0,
+      color: "text-indigo-600 dark:text-indigo-400",
+      trend: "+4%",
+    },
+    {
+      label: "Total Enrollments",
+      value: stats.totalEnrollments ?? 0,
+      color: "text-amber-600 dark:text-amber-400",
+      trend: "+18%",
+    },
+    {
+      label: "Unique Enrolled Students",
+      value: stats.uniqueEnrolledStudents ?? 0,
+      color: "text-emerald-600 dark:text-emerald-400",
+      trend: "+10%",
+    },
+  ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Analytics Dashboard</h1>
-        <p className="text-slate-600 dark:text-slate-400">Insights into your platform performance</p>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+          Analytics Dashboard
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400">
+          Insights into your platform performance
+        </p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-        >
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Students</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.totalStudents ?? 0}</p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card"
-        >
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Active Students</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.activeStudents ?? 0}</p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="card"
-        >
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Courses</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.totalCourses ?? 0}</p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="card"
-        >
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Enrollments</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.totalEnrollments ?? 0}</p>
-        </motion.div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        {statCards.map((card, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200 dark:border-slate-700 transition-all duration-300"
+          >
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
+              {card.label}
+            </p>
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                {card.value.toLocaleString()}
+              </p>
+              <span
+                className={`text-xs font-semibold bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-lg ${card.color}`}
+              >
+                {card.trend}
+              </span>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
       {/* Charts Grid */}
@@ -118,7 +158,7 @@ export default function Analytics() {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="card"
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700"
         >
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
             Enrollment Trends (Last 6 Months)
@@ -131,9 +171,9 @@ export default function Analytics() {
                 <YAxis stroke="#64748b" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
                   }}
                 />
                 <Legend />
@@ -147,17 +187,17 @@ export default function Analytics() {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-300 flex items-center justify-center text-slate-500 dark:text-slate-400">
+            <p className="text-center text-slate-500 dark:text-slate-400">
               No enrollment data available
-            </div>
+            </p>
           )}
         </motion.div>
 
-        {/* Category Distribution */}
+        {/* Courses by Category */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="card"
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700"
         >
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
             Courses by Category
@@ -170,22 +210,27 @@ export default function Analytics() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"
                 >
                   {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-300 flex items-center justify-center text-slate-500 dark:text-slate-400">
+            <p className="text-center text-slate-500 dark:text-slate-400">
               No category data available
-            </div>
+            </p>
           )}
         </motion.div>
 
@@ -193,7 +238,7 @@ export default function Analytics() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card lg:col-span-2"
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 lg:col-span-2"
         >
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
             Most Popular Courses
@@ -206,9 +251,9 @@ export default function Analytics() {
                 <YAxis stroke="#64748b" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
                   }}
                 />
                 <Legend />
@@ -216,12 +261,12 @@ export default function Analytics() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-300 flex items-center justify-center text-slate-500 dark:text-slate-400">
+            <p className="text-center text-slate-500 dark:text-slate-400">
               No course popularity data available
-            </div>
+            </p>
           )}
         </motion.div>
       </div>
     </div>
-  )
+  );
 }

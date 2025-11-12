@@ -62,13 +62,26 @@ export default function AdminLayout() {
         {/* Top Section */}
         <div className="flex-1 flex flex-col overflow-y-auto">
           {/* Sidebar Header */}
-          <div className="flex items-center justify-between px-4 h-16 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between px-4 h-16 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md transition-all duration-300">
             {/* Left Section */}
             <div className="flex items-center gap-3">
-              {/* When expanded → show logo */}
+              {/* When expanded → show logo with proper alignment */}
               {!collapsed && (
-                <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center">
-                  <HiShieldCheck className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-3 group">
+                  <div className="w-28 sm:w-28 h-10 flex items-center justify-center">
+                    {/* Light Logo */}
+                    <img
+                      src="/GreenArcLogo.png"
+                      alt="GreenArc Logo"
+                      className="block dark:hidden w-full h-auto transition-all duration-300"
+                    />
+                    {/* Dark Logo */}
+                    <img
+                      src="/WhiteLogo.png"
+                      alt="GreenArc White Logo"
+                      className="hidden dark:block w-full h-auto transition-all duration-300"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -76,17 +89,10 @@ export default function AdminLayout() {
               {collapsed && (
                 <button
                   onClick={() => setCollapsed(false)}
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="p-2 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-700 transition-all duration-200"
                 >
-                  <HiBars3 className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+                  <HiBars3 className="w-6 h-6 text-primary-600 dark:text-primary-300" />
                 </button>
-              )}
-
-              {/* Title */}
-              {!collapsed && (
-                <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  Admin Panel
-                </h1>
               )}
             </div>
 
@@ -94,7 +100,8 @@ export default function AdminLayout() {
             {!collapsed && (
               <button
                 onClick={() => setCollapsed(true)}
-                className="hidden md:flex p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="hidden md:flex p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+                title="Collapse Sidebar"
               >
                 <HiChevronDoubleLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
               </button>
@@ -103,7 +110,8 @@ export default function AdminLayout() {
             {/* Close Button (Mobile) */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+              className="md:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
+              title="Close Sidebar"
             >
               <HiXMark className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             </button>
@@ -114,19 +122,43 @@ export default function AdminLayout() {
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                      isActive
-                        ? "bg-green-100 dark:bg-primary-900/30 text-green-700 dark:text-primary-300"
-                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
+                <NavLink key={item.path} to={item.path} end>
+                  {({ isActive }) => (
+                    <div
+                      className={`
+              group flex items-center
+              ${collapsed ? "justify-center px-0" : "gap-3 px-4"}
+              py-3 rounded-lg transition-all duration-200 relative
+              ${
+                isActive
+                  ? "bg-green-100 dark:bg-primary-900/30 text-green-700 dark:text-primary-300"
+                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+              }
+            `}
+                      title={collapsed ? item.label : ""}
+                    >
+                      <Icon
+                        className={`w-5 h-5 shrink-0 transition-transform duration-200 ${
+                          collapsed ? "group-hover:scale-110" : ""
+                        }`}
+                      />
+
+                      {/* Label - show only when expanded */}
+                      {!collapsed && (
+                        <span className="whitespace-nowrap transition-all duration-200">
+                          {item.label}
+                        </span>
+                      )}
+
+                      {/* Active indicator */}
+                      {isActive && (
+                        <span
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-green-500 rounded-r-md"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </div>
+                  )}
                 </NavLink>
               );
             })}

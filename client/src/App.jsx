@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { useEffect, useState } from "react";
+import TradingTrendLoader from "./components/ui/ProTradingLoader.jsx";
 import Login from "./pages/auth/Login.jsx";
 import Signup from "./pages/auth/Signup.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
@@ -29,6 +31,21 @@ import AdminMessages from "./pages/admin/AdminMessages.jsx";
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000); // Simulate startup delay
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading) {
+    // ✅ Main Loader Displayed Globally
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-white dark:bg-slate-900">
+        <TradingTrendLoader size={220} color="#22c55e" />
+      </div>
+    );
+  }
   return (
     <>
       {/* <ScreenProtector /> */}
@@ -78,7 +95,7 @@ export default function App() {
       </Routes>
       <ToastContainer
         position="bottom-right"
-        autoClose={4000}
+        autoClose={1000}
         newestOnTop
         closeOnClick
         pauseOnFocusLoss
