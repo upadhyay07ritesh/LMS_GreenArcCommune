@@ -1,14 +1,18 @@
+// server/src/app.js
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import compression from "compression";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import os from "os";
+import { fileURLToPath } from "url";
 import { notFound, errorHandler } from "./middlewares/errorHandler.js";
 
-// 🧩 Import models & routes
+// 🧩 Routes
 import liveSessionsRouter from "./routes/LiveSessions.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import courseRoutes from "./routes/course.routes.js";
@@ -29,19 +33,17 @@ const app = express();
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, "../../uploads");
 
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log("📁 Created missing uploads directory");
-}
+const uploadsDir = path.join(__dirname, "../../uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 /* ============================================================
-   🔒 Smart Dynamic CORS
+   🌐 Smart Dynamic CORS Configuration
 ============================================================ */
 function getLocalNetworkIPs() {
   const interfaces = os.networkInterfaces();
   const ips = [];
+
   Object.values(interfaces).forEach((ifaceList) => {
     ifaceList.forEach((iface) => {
       if (iface.family === "IPv4" && !iface.internal) {
@@ -53,69 +55,79 @@ function getLocalNetworkIPs() {
 }
 
 const dynamicLocalIPs = getLocalNetworkIPs();
+
 const allowedOrigins = [
+  "http://localhost:5173",
   "https://lms.greenarccommune.com",
   "https://lms-greenarccommune-1.onrender.com",
-  `http://${process.env.ALLOWED_DEV_IP}:5173`,
-  "http://localhost:5173",
   "https://lms-greenarccommune-2.onrender.com",
+  `http://${process.env.ALLOWED_DEV_IP}:5173`,
   ...dynamicLocalIPs,
 ];
 
-// CORS configuration
-const corsOptions = {
+// ✅ CORS Middleware (Global)
+app.use(cors({
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://lms-greenarccommune-1.onrender.com',
-      'http://localhost:5173',
-      // Add other allowed origins as needed
-    ];
-    
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn(`🚫 Blocked by CORS: ${origin}`);
+    return callback(new Error("Not allowed by CORS"));
   },
-  credentials: true, // Allow credentials
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Pragma",
+    "Cache-Control",
+  ],
+  exposedHeaders: ["Content-Disposition"],
+}));
 
-app.use(cors(corsOptions));
-// Apply CORS with the above options
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
+// Enable CORS preflight for all routes
+app.options("*", cors());
 
 /* ============================================================
-   ⚙️ Core Middleware
+   🧠 Global Middleware (Performance + Security)
 ============================================================ */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
+app.use(compression());
+app.use(helmet());
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // limit each IP to 200 requests per 15 min
+  message: "Too many requests, please try again later.",
+}));
+
+// 🧱 Disable cache for API only (not static assets)
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
 
 /* ============================================================
    🩺 Health Check
 ============================================================ */
 app.get("/api/ping", (req, res) => res.send("pong"));
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
-app.get("/", (req, res) => res.send("✅ Backend server is live and running!"));
+app.get("/", (req, res) => res.send("✅ GreenArc LMS Backend is Live!"));
 
 /* ============================================================
-   🖼️ Static Uploads Access
+   🖼️ Static Files
 ============================================================ */
-// Serve new uploads directory
 app.use("/uploads", express.static(uploadsDir));
-// Fallback: also serve legacy uploads (server/src/uploads) for previously uploaded files
 const legacyUploadsDir = path.join(__dirname, "../uploads");
-if (fs.existsSync(legacyUploadsDir)) {
-  app.use("/uploads", express.static(legacyUploadsDir));
-}
+if (fs.existsSync(legacyUploadsDir)) app.use("/uploads", express.static(legacyUploadsDir));
 
 /* ============================================================
-   📦 Main API Routes
+   📦 Routes
 ============================================================ */
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
@@ -129,8 +141,6 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/auth/forgot-password", forgotPasswordRoutes);
 app.use("/api/livesessions", liveSessionsRouter);
 app.use("/api/messages", messageRoutes);
-
-
 
 /* ============================================================
    🚨 Error Handling

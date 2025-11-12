@@ -9,7 +9,8 @@ import {
   markAllAsRead,
   deleteMessage,
 } from "../controllers/message.controller.js";
-
+import { User } from "../models/User.js";
+import { Message } from "../models/Message.js";
 const router = express.Router();
 
 /* ==============================
@@ -41,18 +42,19 @@ router.post("/messages/admin/send-course", async (req, res) => {
   if (!course || !title || !body)
     return res.status(400).json({ message: "Missing fields" });
 
-  const students = await Student.find({ course });
+  // find students enrolled in this course (assuming Enrollment model used)
+  // You might prefer Enrollment model approach — simple approach: find users with course field or Enrollment
+  const students = await User.find({ role: "student", $or: [{ course }, { enrolledCourses: course }] }).select("_id");
   if (!students.length)
     return res.status(404).json({ message: "No students in this course" });
 
-  // Loop send or bulk insert messages
   await Promise.all(
     students.map((s) =>
       Message.create({
+        from: req.user ? req.user._id : null,
         to: s._id,
         title,
         body,
-        sender: "admin",
       })
     )
   );

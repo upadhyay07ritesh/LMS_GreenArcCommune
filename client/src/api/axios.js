@@ -3,8 +3,9 @@ import axios from "axios";
 
 const baseURL =
   import.meta.env.MODE === "development"
-    ? "http://localhost:5000/api"
+    ? "/api"  // <- use relative path (vite proxy will forward to localhost:5000)
     : "https://lms-greenarccommune-1.onrender.com/api";
+
 
 // Host for static assets (e.g., /uploads), derived from API base by removing trailing /api
 export const assetBaseURL = baseURL.replace(/\/api$/, "");

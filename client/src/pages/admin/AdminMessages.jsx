@@ -37,12 +37,8 @@ const loadData = useCallback(async () => {
   try {
     setLoading(true);
     const [studentsRes, messagesRes] = await Promise.all([
-      api.get("/admin/students", {
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      }),
-      api.get("/messages/admin/sent", {
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      }),
+      api.get("/admin/students"),
+      api.get("/messages/admin/sent")
     ]);
     setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : []);
     setMessages(Array.isArray(messagesRes.data) ? messagesRes.data : []);

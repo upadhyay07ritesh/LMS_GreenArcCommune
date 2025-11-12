@@ -151,20 +151,30 @@ export const addAdmin = asyncHandler(async (req, res) => {
    ✅ List Students
 ------------------------------------------- */
 export const listStudents = asyncHandler(async (req, res) => {
-  const students = await User.find({ role: "student" }).select("-password");
-  const enrollments = await Enrollment.find()
-    .populate("course", "title _id")
-    .populate("user", "_id");
+  const students = await User.find({ role: "student" })
+    .select("name email studentId status dob avatar")
+    .lean();
 
+  // Load enrollments in one go
+  const enrollments = await Enrollment.find()
+    .populate("course", "title _id category difficulty")
+    .lean();
+
+  // Merge enrollments into students
   const enriched = students.map((student) => {
     const enrolled = enrollments.find(
-      (e) => e.user && e.user._id.toString() === student._id.toString()
+      (e) => e.user?.toString() === student._id.toString()
     );
-    return { ...student.toObject(), course: enrolled?.course || null };
+    return {
+      ...student,
+      course: enrolled?.course || null,
+    };
   });
 
-  res.json(enriched);
+  // ✅ If no enrollment found, still return student
+  res.status(200).json(enriched);
 });
+
 
 /* -------------------------------------------
    ✅ Create Student + Auto ID + Welcome Email
