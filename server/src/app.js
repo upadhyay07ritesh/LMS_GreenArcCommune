@@ -3,7 +3,6 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-import compression from "compression";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "path";
@@ -26,6 +25,9 @@ import forgotPasswordRoutes from "./routes/forgotPassword.routes.js";
 import adminManagementRoutes from "./routes/adminManagement.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 
+// ============================================================
+// ⚡ Initialize app
+// ============================================================
 const app = express();
 
 /* ============================================================
@@ -92,15 +94,14 @@ app.use(
 app.options("*", cors());
 
 /* ============================================================
-   🧠 Global Middleware (Security + Performance)
+   ⚙️ Middleware Setup (Security + Performance)
 ============================================================ */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
-app.use(compression());
 
-// ✅ Balanced Helmet Config (security without breaking CORS)
+// 🧩 Safe Helmet Config (no CORS conflict)
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
@@ -108,16 +109,29 @@ app.use(
   })
 );
 
-// ✅ Rate limiter to avoid brute-force or spam
+// 🧩 Compression — Safe Dynamic Import
+let compression;
+try {
+  const module = await import("compression");
+  compression = module.default;
+  app.use(compression());
+  console.log("✅ Compression enabled successfully");
+} catch (err) {
+  console.warn("⚠️ Compression module not available, skipping gzip.");
+  // Fallback no-op (so app doesn’t crash)
+  app.use((req, res, next) => next());
+}
+
+// 🧩 Rate Limiter to prevent abuse
 app.use(
   rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 min
-    max: 200, // max requests per window per IP
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200,
     message: "Too many requests, please try again later.",
   })
 );
 
-// 🧱 Disable cache for API responses only
+// 🧩 Disable cache for APIs (always fresh data)
 app.use("/api", (req, res, next) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -136,7 +150,6 @@ app.get("/", (req, res) => res.send("✅ GreenArc LMS Backend is Live!"));
    🖼️ Static Files
 ============================================================ */
 app.use("/uploads", express.static(uploadsDir));
-
 const legacyUploadsDir = path.join(__dirname, "../uploads");
 if (fs.existsSync(legacyUploadsDir)) {
   app.use("/uploads", express.static(legacyUploadsDir));
