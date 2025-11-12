@@ -1,9 +1,9 @@
 // server/src/index.js
-import "dotenv/config"; // ✅ Load .env before anything else
+import "dotenv/config"; // ✅ Load environment variables first
 import path from "path";
 import { fileURLToPath } from "url";
 import os from "os";
-import fetch from "node-fetch"; // ✅ For keep-alive ping
+
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 
@@ -54,13 +54,17 @@ async function start() {
     console.log(`   → Network: http://${localIP}:${PORT}`);
     console.log("🌐 Use the Network URL on your phone (same Wi-Fi)\n");
 
-    // 🟢 Keep-Alive Ping (Render / Production only)
+    // 🟢 Keep-Alive Ping (for Render uptime)
     if (process.env.NODE_ENV === "production") {
       console.log("🔁 Keep-alive ping started (every 10 min)...");
       setInterval(() => {
         fetch("https://lms-greenarccommune-1.onrender.com/api/ping")
-          .then(() => console.log(`[${new Date().toISOString()}] 🔁 Ping OK`))
-          .catch(() => console.warn(`[${new Date().toISOString()}] ⚠️ Ping failed`));
+          .then(() =>
+            console.log(`[${new Date().toISOString()}] 🔁 Ping OK`)
+          )
+          .catch(() =>
+            console.warn(`[${new Date().toISOString()}] ⚠️ Ping failed`)
+          );
       }, 600_000); // 10 minutes
     }
   });

@@ -51,6 +51,7 @@ function getLocalNetworkIPs() {
       }
     });
   });
+
   return ips;
 }
 
@@ -65,46 +66,58 @@ const allowedOrigins = [
   ...dynamicLocalIPs,
 ];
 
-// ✅ CORS Middleware (Global)
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    console.warn(`🚫 Blocked by CORS: ${origin}`);
-    return callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-    "Pragma",
-    "Cache-Control",
-  ],
-  exposedHeaders: ["Content-Disposition"],
-}));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      console.warn(`🚫 Blocked by CORS: ${origin}`);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Pragma",
+      "Cache-Control",
+    ],
+    exposedHeaders: ["Content-Disposition"],
+  })
+);
 
-// Enable CORS preflight for all routes
+// Enable CORS preflight
 app.options("*", cors());
 
 /* ============================================================
-   🧠 Global Middleware (Performance + Security)
+   🧠 Global Middleware (Security + Performance)
 ============================================================ */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(compression());
-app.use(helmet());
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per 15 min
-  message: "Too many requests, please try again later.",
-}));
 
-// 🧱 Disable cache for API only (not static assets)
+// ✅ Balanced Helmet Config (security without breaking CORS)
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
+  })
+);
+
+// ✅ Rate limiter to avoid brute-force or spam
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 min
+    max: 200, // max requests per window per IP
+    message: "Too many requests, please try again later.",
+  })
+);
+
+// 🧱 Disable cache for API responses only
 app.use("/api", (req, res, next) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -123,8 +136,11 @@ app.get("/", (req, res) => res.send("✅ GreenArc LMS Backend is Live!"));
    🖼️ Static Files
 ============================================================ */
 app.use("/uploads", express.static(uploadsDir));
+
 const legacyUploadsDir = path.join(__dirname, "../uploads");
-if (fs.existsSync(legacyUploadsDir)) app.use("/uploads", express.static(legacyUploadsDir));
+if (fs.existsSync(legacyUploadsDir)) {
+  app.use("/uploads", express.static(legacyUploadsDir));
+}
 
 /* ============================================================
    📦 Routes
