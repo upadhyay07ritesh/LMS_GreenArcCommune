@@ -55,30 +55,35 @@ function getLocalNetworkIPs() {
 const dynamicLocalIPs = getLocalNetworkIPs();
 const allowedOrigins = [
   "https://lms.greenarccommune.com",
-  "https://lms-greenarccommune-2.onrender.com",
+  "https://lms-greenarccommune-1.onrender.com",
   `http://${process.env.ALLOWED_DEV_IP}:5173`,
   "http://localhost:5173",
+  "https://lms-greenarccommune-2.onrender.com",
   ...dynamicLocalIPs,
 ];
 
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://lms-greenarccommune-1.onrender.com',
+      'http://localhost:5173',
+      // Add other allowed origins as needed
+    ];
+    
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.log("🚫 Blocked by CORS:", origin);
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  exposedHeaders: ["set-cookie", "Set-Cookie"]
+  credentials: true, // Allow credentials
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// Apply CORS with the above options
 app.use(cors(corsOptions));
+// Apply CORS with the above options
 
 // Handle preflight requests
 app.options('*', cors(corsOptions));

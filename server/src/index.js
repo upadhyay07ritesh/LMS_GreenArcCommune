@@ -46,7 +46,7 @@ async function start() {
 
     // ✅ Render Keep Alive (every 10 minutes)
     setInterval(() => {
-      fetch("https://lms-greenarccommune-2.onrender.com/api/ping")
+      fetch("https://lms-greenarccommune-1.onrender.com/api/ping")
         .then(() =>
           console.log(`[${new Date().toISOString()}] 🔁 Keep-alive ping ok`)
         )

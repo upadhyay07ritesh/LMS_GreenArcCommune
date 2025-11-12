@@ -36,16 +36,11 @@ export const signup = asyncHandler(async (req, res) => {
   });
 });
 
+// In authController.js - Update the login handler
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
-  // ✅ Step 1: Normalize the email for case-insensitive match
   const normalizedEmail = email?.trim().toLowerCase();
-
-  // ✅ Step 2: Find user (admin or student) by email
-  const user = await User.findOne({ email: normalizedEmail }).select(
-    "+password"
-  );
+  const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
   if (!user) {
     return res
@@ -53,21 +48,16 @@ export const login = asyncHandler(async (req, res) => {
       .json({ message: "No account found with this email." });
   }
 
-  // ✅ Step 3: Check password validity
   const match = await user.matchPassword(password);
   if (!match) {
     return res.status(401).json({ message: "Incorrect password." });
   }
 
-  // ✅ Step 4: Check account status
   if (user.status === "banned") {
     return res.status(403).json({ message: "Your account has been banned." });
   }
 
-  // ✅ Step 5: Generate JWT token
   const token = signToken(user);
-
-  // ✅ Step 6: Return proper user details based on role
   const userData = {
     id: user._id,
     name: user.name,
@@ -84,17 +74,23 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   // Set JWT in HTTP-only cookie
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+  
   res.cookie('jwt', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Use secure in production (HTTPS only)
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-site in production
+    secure: isProduction, // Use secure in production (HTTPS only)
+    sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    domain: process.env.NODE_ENV === 'production' ? '.greenarccommune.com' : undefined // Allow subdomains in production
+    domain: isProduction && !isLocalhost ? '.lms-greenarccommune-1.onrender.com' : undefined,
+    path: '/', // Ensure the cookie is sent for all paths
   });
 
+  // Also send the token in the response for the frontend to store
   res.json({
     message: `Welcome back, ${user.name}!`,
     user: userData,
+    token, // Send the token in the response body
   });
 });
 
@@ -104,11 +100,14 @@ export const me = asyncHandler(async (req, res) => {
 
 export const logout = asyncHandler(async (req, res) => {
   // Clear the JWT cookie
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+  
   res.clearCookie('jwt', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    domain: process.env.NODE_ENV === 'production' ? '.greenarccommune.com' : undefined
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    domain: isProduction && !isLocalhost ? '.lms-greenarccommune-1.onrender.com' : undefined
   });
   
   res.json({ message: "Successfully logged out" });
