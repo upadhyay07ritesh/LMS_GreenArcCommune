@@ -83,9 +83,17 @@ export const login = asyncHandler(async (req, res) => {
     userData.permissions = user.adminMeta?.permissions || [];
   }
 
+  // Set JWT in HTTP-only cookie
+  res.cookie('jwt', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // Use secure in production (HTTPS only)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-site in production
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    domain: process.env.NODE_ENV === 'production' ? '.greenarccommune.com' : undefined // Allow subdomains in production
+  });
+
   res.json({
     message: `Welcome back, ${user.name}!`,
-    token,
     user: userData,
   });
 });
@@ -95,8 +103,15 @@ export const me = asyncHandler(async (req, res) => {
 });
 
 export const logout = asyncHandler(async (req, res) => {
-  // For stateless JWT, logout is handled on client by removing token
-  res.json({ message: "Logged out" });
+  // Clear the JWT cookie
+  res.clearCookie('jwt', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    domain: process.env.NODE_ENV === 'production' ? '.greenarccommune.com' : undefined
+  });
+  
+  res.json({ message: "Successfully logged out" });
 });
 
 // Forgot password - request OTP

@@ -54,30 +54,34 @@ function getLocalNetworkIPs() {
 
 const dynamicLocalIPs = getLocalNetworkIPs();
 const allowedOrigins = [
-  "http://localhost:5173",
   "https://lms.greenarccommune.com",
   "https://lms-greenarccommune-2.onrender.com",
   `http://${process.env.ALLOWED_DEV_IP}:5173`,
+  "http://localhost:5173",
   ...dynamicLocalIPs,
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("🚫 Blocked by CORS:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  })
-);
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log("🚫 Blocked by CORS:", origin);
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["set-cookie", "Set-Cookie"]
+};
 
-// Also handle preflight requests explicitly
-app.options("*", cors());
+// Apply CORS with the above options
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 /* ============================================================
    ⚙️ Core Middleware
