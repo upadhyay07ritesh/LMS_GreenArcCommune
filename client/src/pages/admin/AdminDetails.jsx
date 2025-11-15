@@ -28,7 +28,7 @@ export default function AdminDetail() {
   const loadAdmin = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/manage-admins/${id}`, {
+      const response = await api.get(`/admins/${id}`, {
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
@@ -76,7 +76,7 @@ export default function AdminDetail() {
     }
 
     try {
-      await api.delete(`/api/manage-admins/${id}`);
+      await api.delete(`/admins/${id}`);
       toast.success(`🗑️ ${admin?.name || 'Admin'} deleted successfully`);
       navigate("/admin/manage-admins");
     } catch (error) {
@@ -139,7 +139,7 @@ export default function AdminDetail() {
           <div className="flex items-center gap-3">
             {/* ✏️ Edit Button */}
             <button
-              onClick={() => navigate(`/admin/manage-admins/edit/${admin._id}`)}
+              onClick={() => navigate(`/admin/manage-admins/${admin.id}`)}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-950/50 transition-colors font-medium"
             >
               <HiPencilSquare className="w-5 h-5" />
@@ -223,7 +223,7 @@ export default function AdminDetail() {
                   </>
                 ) : (
                   <>
-                    <HiNoSymbol className="w-3.5 h-3.5" /> Inactive
+                    <HiNoSymbol className="w-3.5 h-3.5" /> Banned
                   </>
                 )}
               </span>

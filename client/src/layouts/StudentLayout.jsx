@@ -8,6 +8,10 @@ import {
   HiBookOpen,
   HiUser,
   HiVideoCamera,
+  HiArchiveBox,
+  HiRss,
+  HiEnvelope,
+  HiDocument,
 } from "react-icons/hi2";
 import { useEffect, useState } from "react";
 import { logout } from "../slices/authSlice.js";
@@ -36,6 +40,7 @@ export default function StudentLayout() {
     { path: "/student/", label: "Home", icon: HiHome },
     { path: "/student/courses", label: "Courses", icon: HiBookOpen },
     { path: "/student/live-sessions", label: "Live", icon: HiVideoCamera },
+    { path: "/student/journal", label: "Journal", icon: HiDocument },
     { path: "/student/profile", label: "Profile", icon: HiUser },
   ];
   const handleNav = (path) => navigate(path);

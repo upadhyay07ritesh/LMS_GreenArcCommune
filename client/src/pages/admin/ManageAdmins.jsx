@@ -38,7 +38,7 @@ export default function ManageAdmins() {
   };
   useEffect(() => {
     loadAdmins();
-  }, []); 
+  }, []);
 
   const updateStatus = async (id, status) => {
     try {
@@ -186,6 +186,7 @@ export default function ManageAdmins() {
               <th className="px-6 py-3 text-left">#</th>
               <th className="px-6 py-3 text-left">Admin</th>
               <th className="px-6 py-3 text-left">Email</th>
+              <th className="px-6 py-3 text-left">Role</th>
               <th className="px-6 py-3 text-left">Status</th>
               <th className="px-6 py-3 text-right">Actions</th>
             </tr>
@@ -227,6 +228,10 @@ export default function ManageAdmins() {
                       {admin.email}
                     </span>
                   </td>
+                  <td className="px-6 py-4 text-sm font-semibold">
+                    {admin.role === "superadmin" ? "Super Admin" : "Admin"}
+                  </td>
+
                   <td className="px-6 py-4">
                     <span
                       className={`px-3 py-1 text-xs font-semibold rounded-full ${

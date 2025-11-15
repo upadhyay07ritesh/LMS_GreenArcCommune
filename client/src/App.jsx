@@ -24,10 +24,12 @@ import AdminLayout from "./layouts/AdminLayout.jsx";
 import CourseLiveSessions from "./pages/admin/CourseLiveSessions.jsx";
 import StudentDetail from "./pages/admin/StudentDetail.jsx";
 import ManageAdmins from "./pages/admin/ManageAdmins.jsx";
-import AdminDetail from "./pages/admin/AdminDetail.jsx";
+import AdminDetails from "./pages/admin/AdminDetails.jsx";
 import Messages from "./pages/student/MessagesSidebar.jsx";
 import LiveSessions from "./pages/student/LiveSessions.jsx";
 import AdminMessages from "./pages/admin/AdminMessages.jsx";
+import JournalEntry from "./pages/student/JournalEntry.jsx";  
+import AdminProfile from "./pages/admin/AdminProfile.jsx"
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
@@ -52,7 +54,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         <Route element={<ProtectedRoute />}>
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/student/courses/:id" element={<CourseDetail />} />
             <Route path="/student/messages" element={<Messages />} />
             <Route path="/student/live-sessions" element={<LiveSessions />} />
+            <Route path="/journal/new" element={<JournalEntry />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
           </Route>
         </Route>
@@ -76,15 +78,17 @@ export default function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/add-admin" element={<AddAdmin />} />
             <Route path="/admin/manage-admins" element={<ManageAdmins />} />
-            <Route path="admin/:id" element={<AdminDetail />} />
-            <Route path="/admin/profile" element={<StudentProfile />} />
+            <Route path="/admin/manage-admins/:id" element={<AddAdmin />} />
+            <Route path="admin/:id" element={<AdminDetails />} />
+            <Route path="/admin/profile" element={<AdminProfile />} />
             <Route path="/admin/change-password" element={<ChangePassword />} />
             <Route path="/admin/courses" element={<ManageCourses />} />
             <Route path="/admin/students" element={<ManageStudents />} />
             <Route path="/admin/add-student" element={<AddStudent />} />
+            <Route path="/admin/students/:id" element={<AddStudent />} />
             <Route path="/admin/analytics" element={<Analytics />} />
             <Route
-              path="/admin/course-live-sessions"
+              path="/admin/live-sessions"
               element={<CourseLiveSessions />}
             />
             <Route path="/admin/student/:id" element={<StudentDetail />} />

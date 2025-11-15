@@ -16,8 +16,31 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, select: false, minlength: 6 },
 
     /* 🔹 Role Management */
-    role: { type: String, enum: ["student", "admin"], default: "student" },
+    role: { type: String, enum: ["student", "admin","superadmin"], default: "student" },
     status: { type: String, enum: ["active", "banned"], default: "active" },
+    /* 🔹 Common Fields */
+    aadharNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      validate: {
+        validator: (v) => /^[0-9]{12}$/.test(v),
+        message: "Aadhar number must be a 12-digit numeric string",
+      },
+    },
+
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      default: "male",
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["paid", "demo"],
+      default: "demo",
+    },
 
     /* 🔹 Identity IDs */
     studentId: { type: String, unique: true, sparse: true },
@@ -131,7 +154,9 @@ userSchema.post("findOneAndDelete", async function (doc) {
   try {
     const deleted = await Enrollment.deleteMany({ user: doc._id });
     if (deleted.deletedCount > 0) {
-      console.log(`🧹 Cleaned ${deleted.deletedCount} enrollments of deleted user ${doc.email}`);
+      console.log(
+        `🧹 Cleaned ${deleted.deletedCount} enrollments of deleted user ${doc.email}`
+      );
     }
   } catch (err) {
     console.error("❌ Enrollment cleanup failed:", err.message);
@@ -142,8 +167,6 @@ userSchema.post("findOneAndDelete", async function (doc) {
    ⚙️ INDEXES
 ============================================================ */
 userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ studentId: 1 }, { unique: true, sparse: true });
-userSchema.index({ adminId: 1 }, { unique: true, sparse: true });
 userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ createdAt: -1 });

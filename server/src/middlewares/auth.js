@@ -4,7 +4,7 @@ import { User } from '../models/User.js';
 export async function protect(req, res, next) {
   try {
     // Skip auth for specific routes
-    const publicRoutes = ['/auth/login', '/auth/signup', '/auth/me'];
+    const publicRoutes = ['/auth/login', '/auth/me', '/admin/profile'];
     if (publicRoutes.some(route => req.path.startsWith(route))) {
       return next();
     }

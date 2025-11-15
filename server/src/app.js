@@ -12,6 +12,7 @@ import { notFound, errorHandler } from "./middlewares/errorHandler.js";
 // 🧩 Routes
 import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import adminManagementRoutes from "./routes/adminManagement.routes.js";
 import courseRoutes from "./routes/course.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
@@ -86,7 +87,7 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 
 /* ============================================================
-   🧠 Safe Optional Middleware (Helmet, Compression, RateLimit)
+   🧠 Safe Optional Middleware (Helmet, Compression)
 ============================================================ */
 try {
   const helmetModule = await import("helmet");
@@ -111,31 +112,10 @@ try {
   console.warn("⚠️ Compression missing, skipping...");
 }
 
-try {
-  const rateLimitModule = await import("express-rate-limit");
-  const rateLimit = rateLimitModule.default;
-
-  // ⚡ Skip rate limit for admin or internal requests
-  const globalLimiter = rateLimit({
-    windowMs: 10 * 60 * 1000,
-    limit: process.env.NODE_ENV === "production" ? 150 : 500,
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => req.originalUrl.startsWith("/api/admin"),
-    message: "Too many requests, please try again later.",
-  });
-
-  app.use(globalLimiter);
-  console.log("✅ Rate limit active (skips /api/admin)");
-} catch {
-  console.warn("⚠️ express-rate-limit missing, skipping...");
-}
-
 /* ============================================================
    🧱 Cache Control
 ============================================================ */
 app.use("/api", (req, res, next) => {
-  // Only apply no-cache to non-admin routes
   if (!req.originalUrl.startsWith("/api/admin")) {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
@@ -161,6 +141,7 @@ app.use("/uploads", express.static(uploadsDir));
 ============================================================ */
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api", adminManagementRoutes); // Add this line for student management routes
 app.use("/api/courses", courseRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile", profileRoutes);
@@ -169,6 +150,7 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/auth/forgot-password", forgotPasswordRoutes);
 app.use("/api/livesessions", liveSessionsRouter);
 app.use("/api/messages", messageRoutes);
+app.use("/api/manage-admins", adminManagementRoutes);
 
 /* ============================================================
    ❌ Fallback for Unknown Routes

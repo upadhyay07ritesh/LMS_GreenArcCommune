@@ -11,6 +11,7 @@ import {
   addAdmin,
   updateAdminStatus,
   removeAdmin,
+  updateAdmin,
 } from "../controllers/adminManagement.controller.js";
 
 import {
@@ -68,7 +69,7 @@ router.get("/admins/latest-id", asyncHandler(getLatestAdminId));
 router.use(protect);
 
 // ✅ Get all admins
-router.get("/admins", authorize("admin"), asyncHandler(listAdmins));
+router.get("/admins", authorize("admin", "superadmin"), asyncHandler(listAdmins));
 
 // ✅ Add new admin
 router.post(
@@ -92,6 +93,14 @@ router.patch(
 // ✅ Remove admin privileges
 router.delete("/admins/:id", authorize("admin", "superadmin"), asyncHandler(removeAdmin));
 
+// ✅ Update student
+router.put(
+  "/admins/:id",
+  protect,
+  authorize("admin", "superadmin"),
+  upload.single("profilePhoto"),
+  asyncHandler(updateAdmin)
+);
 // ✅ Optional file upload route
 router.post("/upload", upload.single("file"), asyncHandler(handleUpload));
 

@@ -8,13 +8,17 @@ import { sendEmail } from "../utils/email.js";
 ============================================================ */
 export const getAdminWithPermissions = asyncHandler(async (req, res) => {
   try {
-    const admin = await User.findOne({ _id: req.params.id, role: 'admin' })
-      .select('-password -passwordHistory -__v -resetOtpHash -resetOtpExpires -passwordResetToken -passwordResetExpires');
+    const admin = await User.findOne({
+      _id: req.params.id,
+      role: "admin",
+    }).select(
+      "-password -passwordHistory -__v -resetOtpHash -resetOtpExpires -passwordResetToken -passwordResetExpires"
+    );
 
     if (!admin) {
       return res.status(404).json({
         success: false,
-        message: 'Admin not found'
+        message: "Admin not found",
       });
     }
 
@@ -22,9 +26,12 @@ export const getAdminWithPermissions = asyncHandler(async (req, res) => {
     if (!admin.adminMeta) {
       admin.adminMeta = {
         permissions: [],
-        department: ''
+        department: "",
       };
-    } else if (admin.adminMeta.permissions && !Array.isArray(admin.adminMeta.permissions)) {
+    } else if (
+      admin.adminMeta.permissions &&
+      !Array.isArray(admin.adminMeta.permissions)
+    ) {
       // Convert to array if it's not already
       admin.adminMeta.permissions = [admin.adminMeta.permissions];
     } else if (!admin.adminMeta.permissions) {
@@ -33,13 +40,13 @@ export const getAdminWithPermissions = asyncHandler(async (req, res) => {
 
     res.status(200).json({
       success: true,
-      admin
+      admin,
     });
   } catch (error) {
-    console.error('❌ Error fetching admin details:', error);
+    console.error("❌ Error fetching admin details:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch admin details'
+      message: "Failed to fetch admin details",
     });
   }
 });
@@ -49,7 +56,9 @@ export const getAdminWithPermissions = asyncHandler(async (req, res) => {
 ============================================================ */
 export const listAdmins = asyncHandler(async (req, res) => {
   try {
-    const admins = await User.find({ role: "admin" })
+    const admins = await User.find({ 
+      role: { $in: ["admin", "superadmin"] }
+    })
       .select("-password -passwordHistory")
       .sort({ createdAt: -1 });
 
@@ -59,6 +68,7 @@ export const listAdmins = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "Failed to load admins" });
   }
 });
+
 
 /* ============================================================
    ✅ Add New Admin (with Permissions, Department & Avatar)
@@ -92,6 +102,23 @@ export const addAdmin = asyncHandler(async (req, res) => {
 
   // 🔐 Generate secure random temporary password
   const tempPassword = Math.random().toString(36).slice(-8) || "GAC@1234TEMP";
+  const finalRole =
+    req.body.role === "superadmin" ? "superadmin" : "admin";
+
+  const ALL_PERMISSIONS = [
+    "manage_users",
+    "manage_courses",
+    "manage_admins",
+    "manage_live_sessions",
+    "view_analytics",
+  ];
+
+  const finalPermissions =
+    finalRole === "superadmin"
+      ? ALL_PERMISSIONS
+      : Array.isArray(adminMeta.permissions)
+      ? adminMeta.permissions
+      : [];
 
   // 🧱 Create new admin user (model will generate adminId)
   let admin;
@@ -100,15 +127,13 @@ export const addAdmin = asyncHandler(async (req, res) => {
       name: name?.trim(),
       email: email?.trim().toLowerCase(),
       password: tempPassword,
-      role: "admin",
+      role: finalRole,
       emailVerified: false,
       status: "active",
       avatar: profilePhoto,
       adminMeta: {
         department: adminMeta.department?.trim() || "",
-        permissions: Array.isArray(adminMeta.permissions)
-          ? adminMeta.permissions
-          : [],
+        permissions: finalPermissions,
       },
     });
   } catch (err) {
@@ -129,6 +154,7 @@ export const addAdmin = asyncHandler(async (req, res) => {
       <p>You have been successfully added as an <strong>Administrator</strong> on the GreenArc LMS platform.</p>
       <p>Here are your temporary login credentials:</p>
       <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <p>Your Admin Role: <strong>${finalRole}</strong></p>
         <p><strong>Admin ID:</strong> ${admin.adminId}</p>
         <p><strong>Email:</strong> ${email}</p>
         <p><strong>Temporary Password:</strong> ${tempPassword}</p>
@@ -154,8 +180,8 @@ export const addAdmin = asyncHandler(async (req, res) => {
   }
 
   // Get the current admin's token from the request
-  const currentAdminToken = req.headers.authorization?.split(' ')[1];
-  
+  const currentAdminToken = req.headers.authorization?.split(" ")[1];
+
   // Exclude sensitive data from the response
   const adminData = {
     id: admin._id,
@@ -173,16 +199,20 @@ export const addAdmin = asyncHandler(async (req, res) => {
   // Create a clean response object
   const response = {
     success: true,
-    message: "✅ Admin created successfully. Credentials have been sent via email.",
+    message:
+      "✅ Admin created successfully. Credentials have been sent via email.",
     admin: adminData,
     // Always include the current token to prevent session invalidation
-    token: currentAdminToken
+    token: currentAdminToken,
   };
 
   // Send the response with a 200 status code
   // Also set Cache-Control to prevent any caching issues
   return res
-    .set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    .set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate"
+    )
     .status(200)
     .json(response);
 });
@@ -192,7 +222,10 @@ export const addAdmin = asyncHandler(async (req, res) => {
 ============================================================ */
 export const latestAdminId = asyncHandler(async (req, res) => {
   let nextNumber = 1;
-  const lastAdmin = await User.findOne({ role: "admin", adminId: { $exists: true } })
+  const lastAdmin = await User.findOne({
+    role: { $in: ["admin", "superadmin"] },
+    adminId: { $exists: true },
+  })
     .sort({ createdAt: -1 })
     .select("adminId")
     .lean();
@@ -218,11 +251,18 @@ export const updateAdminStatus = asyncHandler(async (req, res) => {
       .json({ message: "You cannot modify your own admin status" });
   }
 
-  const admin = await User.findOneAndDelete({ _id: adminId, role: "admin" });
+  const admin = await User.findOneAndUpdate(
+    { _id: adminId, role: "admin" },
+    { status },
+    { new: true }
+  );
 
-  if (!admin) return res.status(404).json({ message: "Admin not found" });
+  if (!admin) {
+    return res.status(404).json({ message: "Admin not found" });
+  }
 
   res.json({
+    success: true,
     message: "Admin status updated successfully",
     admin,
   });
@@ -235,7 +275,9 @@ export const removeAdmin = asyncHandler(async (req, res) => {
   const adminId = req.params.id;
 
   if (adminId === req.user.id) {
-    return res.status(400).json({ message: "You cannot delete your own admin account" });
+    return res
+      .status(400)
+      .json({ message: "You cannot delete your own admin account" });
   }
 
   const admin = await User.findOneAndDelete({ _id: adminId, role: "admin" });
@@ -253,4 +295,73 @@ export const removeAdmin = asyncHandler(async (req, res) => {
   }
 
   res.json({ message: "Admin deleted successfully" });
+});
+
+// -----------------------------------------------
+// ✅ UPDATE ADMIN (Full Profile Update)
+// -----------------------------------------------
+export const updateAdmin = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  let { name, email, department, permissions, status } = req.body;
+
+  // 1️⃣ Find admin
+  const admin = await User.findById(id);
+
+  if (!admin || admin.role !== "admin") {
+    res.status(404);
+    throw new Error("Admin not found");
+  }
+
+  // 2️⃣ Validate email if it is being changed
+  if (email && email !== admin.email) {
+    const emailExists = await User.findOne({
+      email,
+      _id: { $ne: id },
+    });
+
+    if (emailExists) {
+      res.status(400);
+      throw new Error("Email is already in use");
+    }
+  }
+
+  // 3️⃣ Parse permissions safely
+  let parsedPermissions = [];
+  try {
+    if (typeof permissions === "string") {
+      parsedPermissions = JSON.parse(permissions);
+    } else if (Array.isArray(permissions)) {
+      parsedPermissions = permissions;
+    }
+  } catch (err) {
+    parsedPermissions = admin.adminMeta?.permissions || [];
+  }
+
+  // 4️⃣ Update fields
+  admin.name = name || admin.name;
+  admin.email = email || admin.email;
+  admin.status = status || admin.status;
+  admin.adminMeta = {
+    department: department || admin.adminMeta?.department || "",
+    permissions: parsedPermissions || admin.adminMeta?.permissions || [],
+  };
+
+  // 5️⃣ Handle profile photo
+  if (req.file) {
+    admin.avatar = `/uploads/${req.file.filename}`;
+  }
+
+  // 6️⃣ Save admin
+  await admin.save();
+
+  const updated = await User.findById(id).select(
+    "-password -passwordHistory -resetOtpHash -resetOtpExpires"
+  );
+
+  res.json({
+    success: true,
+    message: "Admin updated successfully",
+    admin: updated,
+  });
 });

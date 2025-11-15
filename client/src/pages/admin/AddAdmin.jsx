@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import api from "../../api/axios.js";
@@ -15,6 +15,7 @@ import {
   HiIdentification,
   HiLockClosed,
   HiArrowPath,
+  HiArrowLeft,
 } from "react-icons/hi2";
 
 const initialFormState = {
@@ -22,6 +23,7 @@ const initialFormState = {
   email: "",
   department: "",
   permissions: [],
+  role: "admin",
 };
 
 export default function AddAdmin() {
@@ -33,6 +35,9 @@ export default function AddAdmin() {
   const [adminId, setAdminId] = useState("");
   const [idLoading, setIdLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
+  const [roleMessage, setRoleMessage] = useState("");
+  const { id } = useParams();
+  const isEdit = Boolean(id);
 
   const availablePermissions = [
     { key: "manage_users", label: "Manage Students" },
@@ -46,14 +51,54 @@ export default function AddAdmin() {
      🔁 Fetch Latest Admin ID
   ======================================================= */
   useEffect(() => {
-    fetchAdminId();
-  }, [retryCount]);
+    if (isEdit) {
+      loadAdmin();
+      fetchAdminId();
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (!isEdit) {
+      fetchAdminId();
+    }
+  }, [retryCount, isEdit]);
+
+  /* =======================================================
+   🎯 Auto-assign permissions when role is superadmin
+======================================================= */
+  useEffect(() => {
+    if (formData.role === "superadmin") {
+      // Auto-select all permissions
+      setFormData((prev) => ({
+        ...prev,
+        permissions: availablePermissions.map((p) => p.key),
+      }));
+    }
+  }, [formData.role]);
+
+  const loadAdmin = async () => {
+    try {
+      const { data } = await api.get(`/manage-admins/admins/${id}`);
+
+      setAdminId(data.admin.adminId);
+
+      setFormData({
+        name: data.admin.name,
+        email: data.admin.email,
+        department: data.admin.adminMeta?.department || "",
+        permissions: data.admin.adminMeta?.permissions || [],
+        role: data.admin.role || "admin",
+      });
+    } catch (error) {
+      toast.error("Failed to load admin details");
+    }
+  };
 
   const fetchAdminId = async () => {
     console.log("🔄 Fetching latest admin ID...");
     setIdLoading(true);
     try {
-      const { data } = await api.get("/manage-admins/admins/latest-id");
+      const { data } = await api.get("/admins/latest-id");
       const nextId = data?.nextId || "GACADM001";
       setAdminId(nextId);
       console.log("✅ Next Admin ID:", nextId);
@@ -76,13 +121,76 @@ export default function AddAdmin() {
   };
 
   const handlePermissionToggle = (key) => {
-    setFormData((prev) => {
-      const updated = prev.permissions.includes(key)
-        ? prev.permissions.filter((p) => p !== key)
-        : [...prev.permissions, key];
-      return { ...prev, permissions: updated };
-    });
-  };
+  setFormData((prev) => {
+    let updatedPermissions = prev.permissions.includes(key)
+      ? prev.permissions.filter((p) => p !== key)
+      : [...prev.permissions, key];
+
+    const allSelected =
+      updatedPermissions.length === availablePermissions.length;
+
+    // If superadmin removes one permission → switch to admin
+    let updatedRole = prev.role;
+    if (prev.role === "superadmin" && !allSelected) {
+      updatedRole = "admin";
+      setRoleMessage(
+        "Permission removed — role downgraded to Admin. Select custom permissions."
+      );
+    }
+
+    // If admin selects all permissions → switch to superadmin
+    if (prev.role === "admin" && allSelected) {
+      updatedRole = "superadmin";
+      setRoleMessage(
+        "All permissions selected — role automatically upgraded to Super Admin."
+      );
+    }
+
+    return {
+      ...prev,
+      permissions: updatedPermissions,
+      role: updatedRole,
+    };
+  });
+};
+  const handleRoleChange = (e) => {
+  const selectedRole = e.target.value;
+
+  if (selectedRole === "superadmin") {
+    setFormData((prev) => ({
+      ...prev,
+      role: "superadmin",
+      permissions: availablePermissions.map((p) => p.key),
+    }));
+
+    setRoleMessage("Super Admin – all permissions are automatically enabled.");
+  }
+
+  if (selectedRole === "admin") {
+    // If admin is selected but all permissions are already selected → convert to superadmin
+    const allSelected =
+      formData.permissions.length === availablePermissions.length;
+
+    if (allSelected) {
+      setFormData((prev) => ({
+        ...prev,
+        role: "superadmin",
+      }));
+      setRoleMessage(
+        "All permissions are selected. Role automatically changed to Super Admin."
+      );
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      role: "admin",
+    }));
+
+    setRoleMessage("Admin role selected — please choose custom permissions.");
+  }
+};
+
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -145,16 +253,17 @@ export default function AddAdmin() {
     }
 
     setLoading(true);
-    
+
     try {
       // 1. First, verify the current session is still valid
-      const verifyResponse = await api.get('/auth/me');
+      const verifyResponse = await api.get("/auth/me");
       if (!verifyResponse.data?.user) {
-        throw new Error('Session expired. Please log in again.');
+        throw new Error("Session expired. Please log in again.");
       }
 
       // 2. Get current token
-      const currentToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const currentToken =
+        localStorage.getItem("adminToken") || localStorage.getItem("token");
       if (!currentToken) {
         throw new Error("No authentication token found");
       }
@@ -163,37 +272,56 @@ export default function AddAdmin() {
       const submitData = new FormData();
       submitData.append("name", formData.name);
       submitData.append("email", formData.email);
-      submitData.append("role", "admin");
+      submitData.append("role", formData.role);
       submitData.append("status", "active");
-      submitData.append(
-        "adminMeta",
-        JSON.stringify({
-          department: formData.department,
-          permissions: formData.permissions,
-        })
-      );
+      submitData.append("department", formData.department);
+
+      submitData.append("permissions", JSON.stringify(formData.permissions));
 
       if (profilePhoto) {
         submitData.append("profilePhoto", profilePhoto);
       }
 
       // 4. Make the API request with the current token
-      const response = await api.post(
-        "/manage-admins/admins", 
-        submitData, 
-        {
-          headers: { 
+      // const response = await api.post("/manage-admins/admins", submitData, {
+      //   headers: {
+      //     "Content-Type": "multipart/form-data",
+      //     Authorization: `Bearer ${currentToken}`,
+      //     "X-Requested-With": "XMLHttpRequest",
+      //   },
+      //   // Prevent axios from automatically following redirects
+      //   maxRedirects: 0,
+      //   validateStatus: (status) => status >= 200 && status < 400,
+      //   withCredentials: true,
+      // });
+
+      let response;
+
+      if (isEdit) {
+        response = await api.put(`/manage-admins/admins/${id}`, submitData, {
+          headers: {
             "Content-Type": "multipart/form-data",
-            "Authorization": `Bearer ${currentToken}`,
-            "X-Requested-With": "XMLHttpRequest"
+            Authorization: `Bearer ${currentToken}`,
+            "X-Requested-With": "XMLHttpRequest",
           },
           // Prevent axios from automatically following redirects
           maxRedirects: 0,
-          validateStatus: status => status >= 200 && status < 400,
-          withCredentials: true
-        }
-      );
-
+          validateStatus: (status) => status >= 200 && status < 400,
+          withCredentials: true,
+        });
+      } else {
+        response = await api.post("/manage-admins/admins", submitData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${currentToken}`,
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          // Prevent axios from automatically following redirects
+          maxRedirects: 0,
+          validateStatus: (status) => status >= 200 && status < 400,
+          withCredentials: true,
+        });
+      }
       // 5. Handle the response
       if (response.data?.success) {
         // Always ensure we have a valid token
@@ -203,40 +331,41 @@ export default function AddAdmin() {
           // If no new token, ensure the current one is still set
           localStorage.setItem("adminToken", currentToken);
         }
-        
+
         // Show success message
         toast.success(response.data.message || "✅ Admin added successfully!");
-        
+
         // Verify session is still valid
         try {
-          const meResponse = await api.get('/auth/me', {
-            headers: { 'Authorization': `Bearer ${response.data.token || currentToken}` }
+          const meResponse = await api.get("/auth/me", {
+            headers: {
+              Authorization: `Bearer ${response.data.token || currentToken}`,
+            },
           });
-          
+
           if (!meResponse.data?.user) {
-            throw new Error('Session verification failed');
+            throw new Error("Session verification failed");
           }
-          
+
           // Update user data in local storage
-          localStorage.setItem('user', JSON.stringify(meResponse.data.user));
-          localStorage.setItem('userRole', meResponse.data.user.role);
-          
+          localStorage.setItem("user", JSON.stringify(meResponse.data.user));
+          localStorage.setItem("userRole", meResponse.data.user.role);
         } catch (refreshError) {
-          console.warn('Session verification failed:', refreshError);
+          console.warn("Session verification failed:", refreshError);
           // If verification fails, redirect to login
           localStorage.clear();
-          window.location.href = '/login';
+          window.location.href = "/login";
           return;
         }
-        
         // Redirect to admin list
-        setTimeout(() => window.location.href = "/manage-admins", 800);
+        setTimeout(() => navigate("/admin/manage-admins"), 800);
       } else {
         throw new Error(response.data?.message || "Failed to add admin");
       }
     } catch (error) {
       console.error("Error adding admin:", error);
-      const msg = error.response?.data?.message || error.message || "Failed to add admin";
+      const msg =
+        error.response?.data?.message || error.message || "Failed to add admin";
       toast.error(msg);
       if (error.response?.data?.errors) {
         setErrors(error.response.data.errors);
@@ -258,6 +387,7 @@ export default function AddAdmin() {
 
   const handleCancel = () => navigate("/manage-admins");
 
+
   /* =======================================================
      🧱 UI
   ======================================================= */
@@ -266,16 +396,37 @@ export default function AddAdmin() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <button
+            onClick={() => navigate(-1)}
+            className="
+              inline-flex items-center gap-2 
+              px-4 py-2 
+              text-slate-700 dark:text-slate-300 
+              bg-white dark:bg-slate-800
+              border border-slate-300 dark:border-slate-600
+              rounded-xl 
+              shadow-sm 
+              hover:bg-primary-600 hover:text-white hover:border-primary-600
+              transition-all duration-200 
+              hover:shadow-md 
+              active:scale-95 mb-4
+            "
+          >
+            <HiArrowLeft className="w-5 h-5" />
+            Back
+          </button>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 bg-primary-100 dark:bg-primary-950/30 rounded-xl flex items-center justify-center">
               <HiUserPlus className="w-6 h-6 text-primary-600 dark:text-primary-400" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Add New Admin
+            <h1 className="text-3xl font-bold ...">
+              {isEdit ? "Edit Admin" : "Add New Admin"}
             </h1>
           </div>
           <p className="text-slate-600 dark:text-slate-400">
-            Define admin details and assign their permissions
+            {isEdit
+              ? "Update admin details and permissions"
+              : "Define admin details and assign their permissions"}
           </p>
         </div>
 
@@ -362,6 +513,47 @@ export default function AddAdmin() {
                 icon={HiBuildingOffice}
               />
             </div>
+            {/* Role Selection */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Admin Role
+              </label>
+
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="admin"
+                    checked={formData.role === "admin"}
+                    onChange={handleRoleChange}
+                    className="w-5 h-5 text-primary-600 border-gray-300 focus:ring-primary-500"
+                  />
+                  <span className="text-slate-700 dark:text-slate-300">
+                    Admin
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="superadmin"
+                    checked={formData.role === "superadmin"}
+                    onChange={handleRoleChange}
+                    className="w-5 h-5 text-primary-600 border-gray-300 focus:ring-primary-500"
+                  />
+                  <span className="text-slate-700 dark:text-slate-300">
+                    Super Admin
+                  </span>
+                </label>
+              </div>
+              {roleMessage && (
+                <p className="text-sm mt-2 text-blue-600 dark:text-blue-400 font-medium">
+                  {roleMessage}
+                </p>
+              )}
+            </div>
 
             {/* Permissions */}
             <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
@@ -439,12 +631,12 @@ export default function AddAdmin() {
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Adding Admin...
+                  {isEdit ? "Saving..." : "Adding Admin..."}
                 </>
               ) : (
                 <>
                   <HiCheckCircle className="w-5 h-5" />
-                  Add Admin
+                  {isEdit ? "Save Changes" : "Add Admin"}
                 </>
               )}
             </button>

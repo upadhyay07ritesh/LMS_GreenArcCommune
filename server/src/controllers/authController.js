@@ -32,6 +32,9 @@ export const signup = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.role,
       studentId: user.studentId,
+      aadharNumber: user.aadharNumber,
+      gender: user.gender,
+      paymentStatus: user.paymentStatus
     },
   });
 });
@@ -63,15 +66,16 @@ export const login = asyncHandler(async (req, res) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    aadharNumber: user.aadharNumber,
+    gender: user.gender,
+    paymentStatus: user.paymentStatus,
+    ...(user.role === "student" && { studentId: user.studentId }),
+    ...(user.role === "admin" && {
+      adminId: user.adminId,
+      department: user.adminMeta?.department || null,
+      permissions: user.adminMeta?.permissions || []
+    })
   };
-
-  if (user.role === "student") {
-    userData.studentId = user.studentId;
-  } else if (user.role === "admin") {
-    userData.adminId = user.adminId;
-    userData.department = user.adminMeta?.department || null;
-    userData.permissions = user.adminMeta?.permissions || [];
-  }
 
   // Set JWT in HTTP-only cookie
   const isProduction = process.env.NODE_ENV === 'production';

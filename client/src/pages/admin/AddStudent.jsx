@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
 import api from "../../api/axios.js";
 import FormInput from "../../components/form/FormInput.jsx";
-import FormSelect from "../../components/form/FormSelect.jsx"; // ✅ Use for dropdown
+import FormSelect from "../../components/form/FormSelect.jsx";
 import FileUpload from "../../components/form/FileUpload.jsx";
+
 import {
   HiUserPlus,
   HiUser,
@@ -16,6 +17,9 @@ import {
   HiAcademicCap,
   HiXMark,
   HiIdentification,
+  HiUserGroup,
+  HiCreditCard,
+  HiArrowLeft,
 } from "react-icons/hi2";
 
 const initialFormState = {
@@ -24,7 +28,21 @@ const initialFormState = {
   phone: "",
   course: "",
   dob: "",
+  gender: "male",
+  paymentStatus: "demo",
+  aadharNumber: "",
 };
+
+const genderOptions = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+];
+
+const paymentStatusOptions = [
+  { value: "paid", label: "Paid" },
+  { value: "demo", label: "Demo" },
+];
 
 export default function AddStudent() {
   const navigate = useNavigate();
@@ -33,108 +51,135 @@ export default function AddStudent() {
   const [loading, setLoading] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [studentId, setStudentId] = useState("");
-  const [courses, setCourses] = useState([]); // ✅ store fetched courses
+  const [courses, setCourses] = useState([]);
+  const { id } = useParams();
+  const isEdit = Boolean(id);
 
-  // ✅ Fetch latest student ID & courses on mount
+  // Fetch Student ID + Courses
   useEffect(() => {
-    fetchStudentId();
+    if (isEdit) {
+      loadStudent();
+    } else {
+      fetchStudentId();
+    }
     fetchCourses();
-  }, []);
+  }, [id]);
 
-  // Get the next student ID from the server
+  const loadStudent = async () => {
+    try {
+      const { data } = await api.get(`/admin/students/${id}`);
+
+      setStudentId(data.studentId);
+      const formatDateForInput = (isoDate) => {
+        if (!isoDate) return "";
+        const dateObj = new Date(isoDate);
+        const d = String(dateObj.getDate()).padStart(2, "0");
+        const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const y = dateObj.getFullYear();
+        return `${d}/${m}/${y}`; // form ke DD/MM/YYYY format ke hisaab se
+      };
+
+      setFormData({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        course: data.course?._id || "",
+        dob: formatDateForInput(data.dob),
+        gender: data.gender,
+        paymentStatus: data.paymentStatus,
+        aadharNumber: data.aadharNumber,
+      });
+    } catch (err) {
+      toast.error("Failed to load student");
+    }
+  };
+
   const fetchStudentId = async () => {
     try {
       const res = await api.get("/admin/students/latest-id");
-      // Use the ID directly from the server
-      if (res.data?.lastId) {
-        setStudentId(res.data.lastId);
-      } else {
-        // Fallback in case the server doesn't return an ID
-        setStudentId("GACSTD202501");
-      }
+      setStudentId(res.data?.lastId || "GACSTD202501");
     } catch (err) {
-      console.error("Failed to fetch student ID", err);
       toast.warning("Could not fetch student ID, using default pattern");
       setStudentId("GACSTD202501");
     }
   };
 
-  // ✅ Fetch courses for dropdown (include _id)
   const fetchCourses = async () => {
     try {
       const res = await api.get("/admin/courses");
-
-    // 🧠 Convert API data to { value: _id, label: name }
-    const formattedCourses = res.data.map((course) => ({
-      value: course._id,  // ✅ this will be sent to backend
-      label: course.name, // ✅ this will show in dropdown
-    }));
-
-    setCourses(formattedCourses);
-  } catch (err) {
-    console.error("Error fetching courses:", err);
-    toast.error("Failed to load courses");
-  }
-};
-
+      setCourses(
+        res.data.map((course) => ({
+          value: course._id,
+          label: course.name,
+        }))
+      );
+    } catch (err) {
+      toast.error("Failed to load courses");
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, selectionStart } = e.target;
-    
-    if (name === 'dob') {
-      // Store cursor position
-      const cursorPosition = selectionStart;
-      const previousLength = formData.dob?.length || 0;
-      
-      // Remove all non-digit characters
-      let digits = value.replace(/\D/g, '');
-      
-      // Format as user types
-      let formatted = '';
+
+    // DOB formatting — DD/MM/YYYY
+    if (name === "dob") {
+      const cursor = selectionStart;
+      const prevLength = formData.dob?.length || 0;
+
+      let digits = value.replace(/\D/g, "");
+      let formatted = "";
+
       for (let i = 0; i < digits.length; i++) {
-        if (i === 2) formatted += '/';
-        if (i === 4) formatted += '/';
-        if (i === 8) break; // Limit to DD/MM/YYYY format
+        if (i === 2) formatted += "/";
+        if (i === 4) formatted += "/";
+        if (i === 8) break;
         formatted += digits[i];
       }
-      
-      // Update the input value
+
       e.target.value = formatted;
-      
-      // Adjust cursor position
-      const addedChars = formatted.length - previousLength;
-      const newCursorPos = cursorPosition + (addedChars > 0 ? 1 : 0);
-      
-      // Set cursor position after the state update
+
+      const added = formatted.length - prevLength;
+      const newCursorPos = cursor + (added > 0 ? 1 : 0);
+
       setTimeout(() => {
         e.target.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
-      
-      setFormData((prev) => ({ ...prev, [name]: formatted }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+
+      setFormData((prev) => ({ ...prev, dob: formatted }));
+      return;
     }
-    
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handlePaymentChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      paymentStatus: value,
+      ...(value === "demo" ? { aadharNumber: "" } : {}),
+    }));
+
+    if (errors.aadharNumber)
+      setErrors((prev) => ({ ...prev, aadharNumber: "" }));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors((prev) => ({
-          ...prev,
-          profilePhoto: "File size must be less than 5MB",
-        }));
-        return;
-      }
-      setProfilePhoto(file);
-      setErrors((prev) => ({ ...prev, profilePhoto: "" }));
+    if (file && file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({
+        ...prev,
+        profilePhoto: "File must be below 5MB",
+      }));
+      return;
     }
+    setProfilePhoto(file);
   };
 
   const validateForm = () => {
     const newErrors = {};
+
     if (!formData.name.trim()) newErrors.name = "Full name is required";
     else if (formData.name.trim().length < 3)
       newErrors.name = "Name must be at least 3 characters";
@@ -142,29 +187,35 @@ export default function AddStudent() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!emailRegex.test(formData.email))
-      newErrors.email = "Invalid email address";
+      newErrors.email = "Invalid email";
 
     const phoneRegex = /^[0-9]{10}$/;
     if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
     else if (!phoneRegex.test(formData.phone))
-      newErrors.phone = "Invalid 10-digit number";
+      newErrors.phone = "Phone must be 10 digits";
 
-    if (!formData.course.trim()) newErrors.course = "Course enrolled is required";
-    
-    // Date of Birth validation
+    if (!formData.course.trim()) newErrors.course = "Course is required";
+
+    // DOB Validation
     if (!formData.dob.trim()) {
-      newErrors.dob = "Date of birth is required";
+      newErrors.dob = "DOB is required";
     } else {
-      const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d{2}$/;
-      if (!dateRegex.test(formData.dob)) {
-        newErrors.dob = "Please enter date in DD/MM/YYYY format";
-      } else {
-        // Additional validation for valid date (e.g., not 31/02/2023)
-        const [day, month, year] = formData.dob.split('/').map(Number);
-        const date = new Date(year, month - 1, day);
-        if (date.getDate() !== day || date.getMonth() + 1 !== month || date.getFullYear() !== year) {
-          newErrors.dob = "Please enter a valid date";
-        }
+      const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d{2}$/;
+      if (!regex.test(formData.dob)) newErrors.dob = "Use DD/MM/YYYY format";
+    }
+
+    // Aadhar validation only when paid
+    // if (formData.paymentStatus === "paid") {
+    //   if (!formData.aadharNumber.trim())
+    //     newErrors.aadharNumber = "Aadhar required for paid";
+    //   else if (!/^\d{12}$/.test(formData.aadharNumber))
+    //     newErrors.aadharNumber = "Aadhar must be 12 digits";
+    // }
+
+    // Aadhar is optional, validate only if entered
+    if (formData.aadharNumber.trim()) {
+      if (!/^\d{12}$/.test(formData.aadharNumber)) {
+        newErrors.aadharNumber = "Aadhar must be 12 digits";
       }
     }
 
@@ -172,71 +223,67 @@ export default function AddStudent() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Generate password: 4 initials of name + year of birth
+  // Password generator
   const generatePassword = () => {
     const initials = formData.name
       .trim()
       .toLowerCase()
-      .split(' ')
-      .map(word => word[0])
-      .join('')
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
       .slice(0, 4);
 
-    // Extract year from DD/MM/YYYY format
-    let year = "";
-    if (formData.dob) {
-      const parts = formData.dob.split('/');
-      if (parts.length === 3) {
-        year = parts[2]; // Get the year part (third part in DD/MM/YYYY)
-      }
-    }
-
+    const year = formData.dob.split("/")[2];
     return `${initials}${year}`;
   };
 
   const formatDateForBackend = (dateStr) => {
-    if (!dateStr) return "";
-    const [day, month, year] = dateStr.split("/");
-    // Convert to YYYY-MM-DD format for the backend
-    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    const [d, m, y] = dateStr.split("/");
+    return `${y}-${m}-${d}`;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      toast.error("Please fix the form errors before submitting.");
+      toast.error("Please fix errors");
       return;
     }
 
     setLoading(true);
+
     try {
-      const autoPassword = generatePassword();
       const submitData = new FormData();
 
       submitData.append("name", formData.name);
       submitData.append("email", formData.email);
       submitData.append("phone", formData.phone);
       submitData.append("course", formData.course);
-      // Convert DD/MM/YYYY to YYYY-MM-DD for the backend
       submitData.append("dob", formatDateForBackend(formData.dob));
       submitData.append("role", "student");
       submitData.append("studentId", studentId);
-      submitData.append("password", autoPassword);
+      submitData.append("password", generatePassword());
       submitData.append("status", "active");
+      submitData.append("gender", formData.gender);
+      submitData.append("paymentStatus", formData.paymentStatus);
+      submitData.append("aadharNumber", formData.aadharNumber);
 
       if (profilePhoto) submitData.append("profilePhoto", profilePhoto);
 
-      await api.post("/admin/students", submitData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      if (isEdit) {
+        await api.put(`/admin/students/${id}`, submitData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Student updated successfully!");
+      } else {
+        await api.post("/admin/students", submitData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Student added successfully!");
+      }
 
-      toast.success(`Student added successfully!`);
       navigate("/admin/students");
     } catch (error) {
-      const msg = error.response?.data?.message || "Failed to add student";
-      toast.error(msg);
-      if (error.response?.data?.errors)
-        setErrors(error.response.data.errors);
+      toast.error(error.response?.data?.message || "Failed to add student");
     } finally {
       setLoading(false);
     }
@@ -249,23 +296,43 @@ export default function AddStudent() {
     fetchStudentId();
   };
 
-  const handleCancel = () => navigate("/admin/students");
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <button
+            onClick={() => navigate(-1)}
+            className="
+    inline-flex items-center gap-2 
+    px-4 py-2 
+    text-slate-700 dark:text-slate-300 
+    bg-white dark:bg-slate-800
+    border border-slate-300 dark:border-slate-600
+    rounded-xl 
+    shadow-sm 
+    hover:bg-primary-600 hover:text-white hover:border-primary-600
+    transition-all duration-200 
+    hover:shadow-md 
+    active:scale-95 mb-4
+  "
+          >
+            <HiArrowLeft className="w-5 h-5" />
+            Back
+          </button>
+
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 bg-primary-100 dark:bg-primary-950/30 rounded-xl flex items-center justify-center">
               <HiUserPlus className="w-6 h-6 text-primary-600 dark:text-primary-400" />
             </div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Add New Student
+              {isEdit ? "Edit Student" : "Add New Student"}
             </h1>
           </div>
           <p className="text-slate-600 dark:text-slate-400">
-            Fill in the details below to create a new student account
+            {isEdit
+              ? "Modify the student details"
+              : "Fill in the details to create a new student account"}
           </p>
         </div>
       </div>
@@ -277,7 +344,7 @@ export default function AddStudent() {
         className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
       >
         <form onSubmit={handleSubmit}>
-          {/* Form Header */}
+          {/* Header */}
           <div className="p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
               Student Information
@@ -289,14 +356,14 @@ export default function AddStudent() {
 
           {/* Form Body */}
           <div className="p-6 space-y-6">
-            {/* Personal Information */}
+            {/* Row 1 */}
             <div className="grid md:grid-cols-2 gap-6">
               <FormInput
                 label="Full Name"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                placeholder="Enter student's full name"
+                placeholder="Enter name"
                 required
                 error={errors.name}
                 icon={HiUser}
@@ -307,11 +374,11 @@ export default function AddStudent() {
                 name="studentId"
                 value={studentId}
                 disabled
-                placeholder="Auto-generated"
                 icon={HiIdentification}
               />
             </div>
 
+            {/* Row 2 */}
             <div className="grid md:grid-cols-2 gap-6">
               <FormInput
                 label="Email Address"
@@ -319,7 +386,6 @@ export default function AddStudent() {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="student@example.com"
                 required
                 error={errors.email}
                 icon={HiEnvelope}
@@ -331,14 +397,14 @@ export default function AddStudent() {
                 type="tel"
                 value={formData.phone}
                 onChange={handleChange}
-                placeholder="1234567890"
                 required
                 error={errors.phone}
                 icon={HiPhone}
+                maxLength="10"
               />
             </div>
 
-            {/* ✅ Dropdown for Course + DOB */}
+            {/* Row 3 */}
             <div className="grid md:grid-cols-2 gap-6">
               <FormSelect
                 label="Course Enrolled"
@@ -346,7 +412,6 @@ export default function AddStudent() {
                 value={formData.course}
                 onChange={handleChange}
                 options={courses}
-                required
                 error={errors.course}
                 icon={HiAcademicCap}
                 placeholder="Select a course"
@@ -355,7 +420,6 @@ export default function AddStudent() {
               <FormInput
                 label="Date of Birth (DD/MM/YYYY)"
                 name="dob"
-                type="text"
                 value={formData.dob}
                 onChange={handleChange}
                 placeholder="DD/MM/YYYY"
@@ -366,15 +430,56 @@ export default function AddStudent() {
               />
             </div>
 
-            {/* Profile Photo */}
+            {/* Row 4 — gender + payment */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <FormSelect
+                label="Gender"
+                name="gender"
+                value={formData.gender}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, gender: e.target.value }))
+                }
+                options={genderOptions}
+                icon={HiUserGroup}
+              />
+
+              <FormSelect
+                label="Payment Status"
+                name="paymentStatus"
+                value={formData.paymentStatus}
+                onChange={(e) => handlePaymentChange(e.target.value)}
+                options={paymentStatusOptions}
+                icon={HiCreditCard}
+              />
+            </div>
+
+            {/* Row 5 — Aadhar */}
+            <FormInput
+              label="Aadhar Number"
+              name="aadharNumber"
+              value={formData.aadharNumber}
+              onChange={handleChange}
+              // placeholder={
+              //   formData.paymentStatus === "demo"
+              //     ? "Not required for Demo"
+              //     : "Enter 12-digit Aadhar"
+              // }
+              placeholder="Enter 12-digit Aadhar (Optional)"
+              error={errors.aadharNumber}
+              icon={HiIdentification}
+              // disabled={formData.paymentStatus === "demo"}
+              disabled={false}
+            />
+
+            {/* Profile Upload */}
             <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
               <FileUpload
                 label="Profile Photo"
                 name="profilePhoto"
                 onChange={handleFileChange}
                 accept="image/*"
+                hint="PNG, JPG, JPEG — Max 5MB"
                 error={errors.profilePhoto}
-                hint="Optional: Upload a profile picture (PNG, JPG, JPEG - Max 5MB)"
               />
             </div>
           </div>
@@ -383,17 +488,17 @@ export default function AddStudent() {
           <div className="flex flex-col sm:flex-row items-center justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
             <button
               type="button"
-              onClick={handleCancel}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium"
+              onClick={() => navigate("/admin/students")}
+              className="w-full sm:w-auto px-6 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg"
             >
-              <HiXMark className="w-5 h-5" />
+              <HiXMark className="inline w-5 h-5 mr-2" />
               Cancel
             </button>
 
             <button
               type="button"
               onClick={handleReset}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium"
+              className="w-full sm:w-auto px-6 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg"
             >
               Reset
             </button>
@@ -401,19 +506,9 @@ export default function AddStudent() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
             >
-              {loading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Adding Student...
-                </>
-              ) : (
-                <>
-                  <HiCheckCircle className="w-5 h-5" />
-                  Add Student
-                </>
-              )}
+              {loading ? "Adding..." : isEdit ? "Save Changes" : "Add Student"}
             </button>
           </div>
         </form>

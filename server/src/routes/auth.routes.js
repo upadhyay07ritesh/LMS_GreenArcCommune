@@ -3,8 +3,10 @@ import { body } from 'express-validator';
 import { signup, login, me, logout, requestPasswordResetOtp, verifyOtp, resetPassword } from '../controllers/authController.js';
 import { protect } from '../middlewares/auth.js';
 import { runValidation } from '../middlewares/validate.js';
+import { userSignupValidation } from '../middlewares/userValidation.js';
 
 const router = express.Router();
+router.post('/signup', userSignupValidation, runValidation, signup);
 router.post('/login', [body('email').isEmail(), body('password').notEmpty()], runValidation, login);
 router.get('/me', protect, me);
 router.post('/logout', protect, logout);

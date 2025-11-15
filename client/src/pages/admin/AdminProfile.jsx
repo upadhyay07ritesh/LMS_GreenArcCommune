@@ -1,440 +1,353 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
-import api from '../../api/axios';
-import { 
-  Card, 
-  Form, 
-  Button, 
-  Spinner, 
-  Row, 
-  Col, 
-  Alert,
-  Tabs,
-  Tab,
-  Badge
-} from 'react-bootstrap';
-import { 
-  FaUser, 
-  FaEnvelope, 
-  FaLock, 
-  FaSave, 
-  FaKey, 
-  FaUserEdit,
-  FaCamera,
-  FaTimes
-} from 'react-icons/fa';
+// AdminProfile.jsx – Clean + Glass + Breadcrumb + Soft Animations
 
-const AdminProfile = () => {
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { motion } from "framer-motion";
+import {
+  HiPencil,
+  HiCheck,
+  HiXMark,
+  HiCamera,
+  HiArrowRightOnRectangle,
+} from "react-icons/hi2";
+import api from "../../api/axios";
+import { useDispatch } from "react-redux";
+import { logout } from "../../slices/authSlice";
+
+export default function AdminProfile() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [admin, setAdmin] = useState(null);
-  const [activeTab, setActiveTab] = useState('profile');
-  const [profileImage, setProfileImage] = useState(null);
-  const [previewImage, setPreviewImage] = useState('');
+
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    department: "",
+    adminId: "",
+    avatar: "",
+  });
+  const [avatarFile, setAvatarFile] = useState(null);
 
   useEffect(() => {
-    const fetchAdminProfile = async () => {
+    const fetchAdmin = async () => {
       try {
-        const response = await api.get('/auth/me');
-        setAdmin(response.data.user);
-        setPreviewImage(response.data.user.avatar || '');
+        const res = await api.get("/auth/me");
+        const u = res.data.user;
+        setAdmin(u);
+        setFormData({
+          name: u.name,
+          email: u.email,
+          department: u.adminMeta?.department || "",
+          adminId: u.adminId || "",
+          avatar: u.avatar || "",
+        });
       } catch (err) {
-        console.error('Error fetching admin profile:', err);
-        toast.error('Failed to load admin profile');
+        toast.error("Failed to load profile");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAdminProfile();
+    fetchAdmin();
   }, []);
 
-  const profileForm = useFormik({
-    enableReinitialize: true,
-    initialValues: {
-      name: admin?.name || '',
-      email: admin?.email || '',
-      department: admin?.adminMeta?.department || '',
-    },
-    validationSchema: Yup.object({
-      name: Yup.string().required('Name is required'),
-      email: Yup.string().email('Invalid email address').required('Email is required'),
-      department: Yup.string().required('Department is required'),
-    }),
-    onSubmit: async (values) => {
-      try {
-        setSaving(true);
-        const formData = new FormData();
-        
-        // Append profile data
-        formData.append('name', values.name);
-        formData.append('email', values.email);
-        formData.append('adminMeta', JSON.stringify({
-          ...admin.adminMeta,
-          department: values.department
-        }));
-        
-        // Append profile image if selected
-        if (profileImage) {
-          formData.append('profilePhoto', profileImage);
-        }
-
-        const response = await api.put('/auth/update-profile', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-
-        setAdmin(response.data.user);
-        setPreviewImage(response.data.user.avatar || '');
-        toast.success('Profile updated successfully');
-      } catch (err) {
-        console.error('Error updating profile:', err);
-        toast.error(err.response?.data?.message || 'Failed to update profile');
-      } finally {
-        setSaving(false);
-      }
-    },
-  });
-
-  const passwordForm = useFormik({
-    initialValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
-    validationSchema: Yup.object({
-      currentPassword: Yup.string().required('Current password is required'),
-      newPassword: Yup.string()
-        .min(8, 'Password must be at least 8 characters')
-        .required('New password is required'),
-      confirmPassword: Yup.string()
-        .oneOf([Yup.ref('newPassword'), null], 'Passwords must match')
-        .required('Please confirm your password'),
-    }),
-    onSubmit: async (values, { resetForm }) => {
-      try {
-        setSaving(true);
-        await api.put('/auth/update-password', {
-          currentPassword: values.currentPassword,
-          newPassword: values.newPassword,
-        });
-        
-        resetForm();
-        toast.success('Password updated successfully');
-      } catch (err) {
-        console.error('Error updating password:', err);
-        toast.error(err.response?.data?.message || 'Failed to update password');
-      } finally {
-        setSaving(false);
-      }
-    },
-  });
-
-  const handleImageChange = (e) => {
+  const handleAvatarChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setProfileImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImage(reader.result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be under 2MB");
+      return;
     }
+
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({ ...prev, avatar: reader.result }));
+    };
+    reader.readAsDataURL(file);
   };
 
-  const removeProfileImage = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
       setSaving(true);
-      const response = await api.delete('/auth/remove-profile-image');
-      setAdmin(response.data.user);
-      setPreviewImage('');
-      setProfileImage(null);
-      toast.success('Profile image removed');
+
+      const data = new FormData();
+      data.append("name", formData.name);
+      data.append("email", formData.email);
+      data.append(
+        "adminMeta",
+        JSON.stringify({
+          department: formData.department,
+        })
+      );
+      if (avatarFile) data.append("profilePhoto", avatarFile);
+
+      const res = await api.put("/auth/update-profile", data);
+      const updated = res.data.user;
+
+      setAdmin(updated);
+      setFormData({
+        name: updated.name,
+        email: updated.email,
+        department: updated.adminMeta?.department || "",
+        adminId: updated.adminId,
+        avatar: updated.avatar || "",
+      });
+
+      setIsEditing(false);
+      toast.success("Profile updated");
     } catch (err) {
-      console.error('Error removing profile image:', err);
-      toast.error('Failed to remove profile image');
+      toast.error(err.response?.data?.message || "Update failed");
     } finally {
       setSaving(false);
     }
   };
 
+  const handleCancel = () => {
+    if (admin) {
+      setFormData({
+        name: admin.name,
+        email: admin.email,
+        department: admin.adminMeta?.department || "",
+        adminId: admin.adminId,
+        avatar: admin.avatar || "",
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleLogout = () => {
+    try {
+      dispatch(logout());
+    } catch {}
+    navigate("/login");
+  };
+
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
-        <Spinner animation="border" variant="primary" />
+      <div className="flex justify-center py-20">
+        <div className="animate-spin h-10 w-10 rounded-full border-b-2 border-primary-500"></div>
       </div>
     );
   }
 
-  if (!admin) {
-    return <Alert variant="danger">Failed to load admin profile</Alert>;
-  }
-
   return (
-    <div className="container py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>My Profile</h2>
-        <Button variant="outline-secondary" onClick={() => navigate(-1)}>
-          Go Back
-        </Button>
+    <div className="px-6 lg:px-10 pb-10">
+      {/* Header Section */}
+      <div className="flex items-center gap-4 mb-6">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="
+      flex items-center gap-2 px-3 py-2 
+      rounded-lg border border-slate-300 dark:border-slate-700
+      text-slate-700 dark:text-slate-300 
+      hover:bg-slate-100 dark:hover:bg-slate-800
+      transition
+    "
+        >
+          <HiArrowRightOnRectangle className="w-4 h-4 rotate-180" />
+          Back
+        </button>
+
+        {/* Title */}
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+            Admin Profile
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Manage your personal information
+          </p>
+        </div>
       </div>
 
-      <Tabs
-        activeKey={activeTab}
-        onSelect={(k) => setActiveTab(k)}
-        className="mb-4"
-        id="admin-profile-tabs"
+      {/* HEADER CARD – Glass Effect */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="
+          relative rounded-xl 
+          backdrop-blur-xl bg-white/50 dark:bg-slate-900/40 
+          border border-white/40 dark:border-slate-700/40 
+          shadow-lg p-6 hover:shadow-xl transition-shadow
+        "
       >
-        <Tab eventKey="profile" title={
-          <span><FaUserEdit className="me-1" /> Profile</span>
-        }>
-          <Card className="mt-3">
-            <Card.Body>
-              <Form onSubmit={profileForm.handleSubmit}>
-                <Row>
-                  <Col md={4} className="text-center mb-4">
-                    <div className="position-relative d-inline-block">
-                      <div 
-                        className="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto" 
-                        style={{ 
-                          width: '200px', 
-                          height: '200px', 
-                          overflow: 'hidden',
-                          border: '1px solid #dee2e6'
-                        }}
-                      >
-                        {previewImage ? (
-                          <img 
-                            src={previewImage} 
-                            alt={admin.name} 
-                            className="img-fluid"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <FaUser size={80} className="text-muted" />
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <input
-                          type="file"
-                          id="profileImage"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="d-none"
-                        />
-                        <Button
-                          as="label"
-                          htmlFor="profileImage"
-                          variant="outline-primary"
-                          className="me-2"
-                        >
-                          <FaCamera className="me-1" /> Change
-                        </Button>
-                        {previewImage && (
-                          <Button
-                            variant="outline-danger"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              removeProfileImage();
-                            }}
-                            disabled={saving}
-                          >
-                            <FaTimes className="me-1" /> Remove
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <h4>{admin.name}</h4>
-                      <Badge bg="info">{admin.role?.toUpperCase()}</Badge>
-                      {admin.status === 'active' ? (
-                        <Badge bg="success" className="ms-1">ACTIVE</Badge>
-                      ) : (
-                        <Badge bg="danger" className="ms-1">INACTIVE</Badge>
-                      )}
-                      <div className="text-muted mt-2">
-                        <small>ID: {admin.adminId || 'N/A'}</small>
-                      </div>
-                    </div>
-                  </Col>
-                  <Col md={8}>
-                    <Row className="mb-3">
-                      <Col md={6}>
-                        <Form.Group className="mb-3" controlId="name">
-                          <Form.Label>Full Name</Form.Label>
-                          <Form.Control
-                            type="text"
-                            name="name"
-                            value={profileForm.values.name}
-                            onChange={profileForm.handleChange}
-                            onBlur={profileForm.handleBlur}
-                            isInvalid={profileForm.touched.name && !!profileForm.errors.name}
-                          />
-                          <Form.Control.Feedback type="invalid">
-                            {profileForm.errors.name}
-                          </Form.Control.Feedback>
-                        </Form.Group>
-                      </Col>
-                      <Col md={6}>
-                        <Form.Group className="mb-3" controlId="email">
-                          <Form.Label>Email Address</Form.Label>
-                          <Form.Control
-                            type="email"
-                            name="email"
-                            value={profileForm.values.email}
-                            onChange={profileForm.handleChange}
-                            onBlur={profileForm.handleBlur}
-                            isInvalid={profileForm.touched.email && !!profileForm.errors.email}
-                          />
-                          <Form.Control.Feedback type="invalid">
-                            {profileForm.errors.email}
-                          </Form.Control.Feedback>
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    
-                    <Form.Group className="mb-4" controlId="department">
-                      <Form.Label>Department</Form.Label>
-                      <Form.Control
-                        type="text"
-                        name="department"
-                        value={profileForm.values.department}
-                        onChange={profileForm.handleChange}
-                        onBlur={profileForm.handleBlur}
-                        isInvalid={profileForm.touched.department && !!profileForm.errors.department}
-                      />
-                      <Form.Control.Feedback type="invalid">
-                        {profileForm.errors.department}
-                      </Form.Control.Feedback>
-                    </Form.Group>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+          {/* Avatar */}
+          <div className="relative">
+            <div
+              className="
+              w-28 h-28 rounded-full overflow-hidden 
+              shadow-md bg-white dark:bg-slate-900 
+              border border-slate-200 dark:border-slate-700
+              transition-transform hover:scale-[1.02]
+            "
+            >
+              {formData.avatar ? (
+                <img
+                  src={formData.avatar}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-4xl font-semibold text-slate-500 flex items-center justify-center h-full">
+                  {formData.name.charAt(0)}
+                </span>
+              )}
+            </div>
 
-                    <div className="d-flex justify-content-end">
-                      <Button 
-                        type="submit" 
-                        variant="primary"
-                        disabled={saving || !profileForm.dirty}
-                      >
-                        {saving ? (
-                          <>
-                            <Spinner
-                              as="span"
-                              animation="border"
-                              size="sm"
-                              role="status"
-                              aria-hidden="true"
-                              className="me-2"
-                            />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <FaSave className="me-1" /> Save Changes
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </Col>
-                </Row>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Tab>
-        
-        <Tab eventKey="password" title={
-          <span><FaKey className="me-1" /> Change Password</span>
-        }>
-          <Card className="mt-3">
-            <Card.Body>
-              <Form onSubmit={passwordForm.handleSubmit}>
-                <Row>
-                  <Col md={8}>
-                    <Form.Group className="mb-3" controlId="currentPassword">
-                      <Form.Label>Current Password</Form.Label>
-                      <Form.Control
-                        type="password"
-                        name="currentPassword"
-                        value={passwordForm.values.currentPassword}
-                        onChange={passwordForm.handleChange}
-                        onBlur={passwordForm.handleBlur}
-                        isInvalid={passwordForm.touched.currentPassword && !!passwordForm.errors.currentPassword}
-                      />
-                      <Form.Control.Feedback type="invalid">
-                        {passwordForm.errors.currentPassword}
-                      </Form.Control.Feedback>
-                    </Form.Group>
+            {isEditing && (
+              <label className="absolute bottom-0 right-0 bg-primary-500 text-white p-2 rounded-full cursor-pointer hover:bg-primary-600 shadow">
+                <HiCamera className="w-4 h-4" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+              </label>
+            )}
+          </div>
 
-                    <Form.Group className="mb-3" controlId="newPassword">
-                      <Form.Label>New Password</Form.Label>
-                      <Form.Control
-                        type="password"
-                        name="newPassword"
-                        value={passwordForm.values.newPassword}
-                        onChange={passwordForm.handleChange}
-                        onBlur={passwordForm.handleBlur}
-                        isInvalid={passwordForm.touched.newPassword && !!passwordForm.errors.newPassword}
-                      />
-                      <Form.Text className="text-muted">
-                        Password must be at least 8 characters long
-                      </Form.Text>
-                      <Form.Control.Feedback type="invalid">
-                        {passwordForm.errors.newPassword}
-                      </Form.Control.Feedback>
-                    </Form.Group>
+          {/* Info */}
+          <div className="flex-1 space-y-1">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              {formData.name}
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400">
+              {formData.email}
+            </p>
 
-                    <Form.Group className="mb-4" controlId="confirmPassword">
-                      <Form.Label>Confirm New Password</Form.Label>
-                      <Form.Control
-                        type="password"
-                        name="confirmPassword"
-                        value={passwordForm.values.confirmPassword}
-                        onChange={passwordForm.handleChange}
-                        onBlur={passwordForm.handleBlur}
-                        isInvalid={passwordForm.touched.confirmPassword && !!passwordForm.errors.confirmPassword}
-                      />
-                      <Form.Control.Feedback type="invalid">
-                        {passwordForm.errors.confirmPassword}
-                      </Form.Control.Feedback>
-                    </Form.Group>
+            {!isEditing && (
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="btn btn-primary"
+                >
+                  <HiPencil className="w-4 h-4" /> Edit
+                </button>
+                <button
+                  onClick={() => navigate("/admin/change-password")}
+                  className="btn btn-outline"
+                >
+                  Change Password
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
 
-                    <div className="d-flex justify-content-end">
-                      <Button 
-                        type="submit" 
-                        variant="primary"
-                        disabled={saving || !passwordForm.dirty}
-                      >
-                        {saving ? (
-                          <>
-                            <Spinner
-                              as="span"
-                              animation="border"
-                              size="sm"
-                              role="status"
-                              aria-hidden="true"
-                              className="me-2"
-                            />
-                            Updating...
-                          </>
-                        ) : (
-                          <>
-                            <FaLock className="me-1" /> Update Password
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </Col>
-                </Row>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Tab>
-      </Tabs>
+      {/* DETAILS CARD – Glass + Dividers */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="
+          mt-8 rounded-xl 
+          backdrop-blur-xl bg-white/50 dark:bg-slate-900/40 
+          border border-white/40 dark:border-slate-700/40 
+          shadow-lg p-8 hover:shadow-xl transition-shadow
+        "
+      >
+        <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-6">
+          Profile Information
+        </h3>
+
+        {/* Divider */}
+        <div className="border-b border-slate-200/60 dark:border-slate-700/60 mb-6"></div>
+
+        {isEditing ? (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="label">Full Name</label>
+              <input
+                className="input w-full transition-all hover:shadow-sm"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData((s) => ({ ...s, name: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="label">Email</label>
+              <input
+                className="input w-full transition-all hover:shadow-sm"
+                type="email"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData((s) => ({ ...s, email: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="label">Department</label>
+              <input
+                className="input w-full transition-all hover:shadow-sm"
+                value={formData.department}
+                onChange={(e) =>
+                  setFormData((s) => ({ ...s, department: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="btn btn-primary flex-1"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="btn btn-outline flex-1"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+            <div>
+              <p className="text-sm text-slate-500 mb-1">Name</p>
+              <p className="font-medium">{admin.name}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-slate-500 mb-1">Admin ID</p>
+              <p className="font-medium">{admin.adminId}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-slate-500 mb-1">Email</p>
+              <p className="font-medium">{admin.email}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-slate-500 mb-1">Department</p>
+              <p className="font-medium">
+                {admin.adminMeta?.department || "—"}
+              </p>
+            </div>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Logout */}
+      <div className="mt-8 flex justify-end">
+        <button onClick={handleLogout} className="btn btn-outline gap-2">
+          <HiArrowRightOnRectangle className="w-4 h-4" /> Logout
+        </button>
+      </div>
     </div>
   );
-};
-
-export default AdminProfile;
+}

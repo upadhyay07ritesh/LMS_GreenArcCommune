@@ -295,6 +295,9 @@ export default function ManageStudents() {
                   Student ID
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Payment Status
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -364,6 +367,29 @@ export default function ManageStudents() {
                         <HiIdentification className="w-4 h-4 text-slate-400" />
                         {student.studentId || "-"}
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                          student.paymentStatus === "paid"
+                            ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400"
+                            : student.paymentStatus === "demo"
+                            ? "bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400"
+                            : "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400"
+                        }`}
+                      >
+                        {student.paymentStatus === "paid" && (
+                          <>
+                            <HiCheckCircle className="w-3.5 h-3.5" /> Paid
+                          </>
+                        )}
+
+                        {student.paymentStatus === "demo" && (
+                            <>
+                              <HiNoSymbol className="w-3.5 h-3.5" /> Demo
+                            </>
+                          )}
+                      </span>
                     </td>
 
                     <td className="px-6 py-4">
