@@ -164,7 +164,7 @@ export default function Login() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com"
+                    placeholder="abc@gmail.com"
                     className="w-full mt-2 px-4 py-3 rounded-xl bg-white border border-green-300
                     dark:bg-green-950/50 dark:border-green-700 focus:ring-2 focus:ring-green-500"
                   />
@@ -203,7 +203,8 @@ export default function Login() {
                   </Link>
 
                   <span className="text-green-700 dark:text-green-300">
-                    Need help?{" "}
+                    <span className="text-black dark:text-white">Need help?</span>
+                    {" "}
                     <a
                       href="https://wa.me/+919753574157"
                       target="_blank"
@@ -226,7 +227,7 @@ export default function Login() {
               </form>
 
               <div className="mt-6 text-center text-sm text-green-700 dark:text-green-300">
-                Don’t have an account?
+                <span className="text-black dark:text-white">Don’t have an account? </span>
                 <a
                   href="https://wa.me/+919753574157"
                   target="_blank"
