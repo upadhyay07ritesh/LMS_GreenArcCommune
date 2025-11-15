@@ -51,7 +51,7 @@ export default function AdminLayout() {
     { path: "/admin/students", label: "Students", icon: HiUsers },
     { path: "/admin/analytics", label: "Analytics", icon: HiChartBar },
     {
-      path: "/admin/course-live-sessions",
+      path: "/admin/live-sessions",
       label: "Live Sessions",
       icon: HiLink,
     },
