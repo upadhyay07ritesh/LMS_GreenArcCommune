@@ -30,6 +30,7 @@ import {
   removeProfileImage, 
   updatePassword, 
 } from "../controllers/adminProfile.controller.js";
+import { setLiveSessionStatus } from "../controllers/liveSessions.controller.js";
 import { User } from "../models/User.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
@@ -299,7 +300,8 @@ router.post(
 router.post("/live-sessions/start/:id", asyncHandler(startLiveSession));
 router.post("/live-sessions/end/:id", asyncHandler(endLiveSession));
 
-
+//Update a live session
+router.post("/live-sessions/status/:id", protect, authorize("admin"), setLiveSessionStatus);
 
 // List all sessions
 router.get(

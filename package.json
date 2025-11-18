@@ -9,10 +9,13 @@
     "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
     "node-fetch": "^3.3.2",
+    "node-schedule": "^2.1.1",
     "react-bootstrap": "^2.10.10",
     "react-hook-form": "^7.66.0",
     "redis": "^5.9.0",
     "resend": "^6.4.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "yup": "^1.7.1"
   }
 }

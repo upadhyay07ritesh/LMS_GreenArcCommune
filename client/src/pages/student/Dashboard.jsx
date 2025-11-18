@@ -43,7 +43,14 @@ export default function StudentDashboard() {
         dispatch(myEnrollments());
         dispatch(fetchCourses());
         const sessionRes = await api.get("/student/live-sessions");
-        setLiveSessions(sessionRes.data || []);
+
+        const upcomingOnly = (sessionRes.data || []).filter((s) => {
+          const isFuture = new Date(s.date) > new Date();
+          const isUpcoming = s.status === "upcoming";
+          return isFuture && isUpcoming;
+        });
+
+        setLiveSessions(upcomingOnly);
       } catch (err) {
         console.warn("⚠️ Dashboard init failed:", err.message);
       }
@@ -93,24 +100,24 @@ export default function StudentDashboard() {
   // =======================================================
   useEffect(() => {
     const BANNER_VISIBLE_MS = 10 * 60 * 1000; // 10 minutes
-    const SHOW_ONCE_KEY = 'showWelcomeBannerOnce';
-    const SESSION_FLAG = 'welcomeBannerShownThisSession';
+    const SHOW_ONCE_KEY = "showWelcomeBannerOnce";
+    const SESSION_FLAG = "welcomeBannerShownThisSession";
 
     // If login set the SHOW_ONCE_KEY, show now and then clear it
-    const shouldShowOnce = sessionStorage.getItem(SHOW_ONCE_KEY) === '1';
+    const shouldShowOnce = sessionStorage.getItem(SHOW_ONCE_KEY) === "1";
     // Or if URL contains wb=1 (fallback trigger via navigation)
-    const params = new URLSearchParams(location.search || '');
-    const hasWbParam = params.get('wb') === '1';
+    const params = new URLSearchParams(location.search || "");
+    const hasWbParam = params.get("wb") === "1";
     if (shouldShowOnce || hasWbParam) {
       sessionStorage.removeItem(SHOW_ONCE_KEY);
       setShowBanner(true);
-      sessionStorage.setItem(SESSION_FLAG, '1');
+      sessionStorage.setItem(SESSION_FLAG, "1");
       const timerId = setTimeout(() => setShowBanner(false), BANNER_VISIBLE_MS);
       return () => clearTimeout(timerId);
     }
 
     // If banner already shown this session, keep it hidden on refresh
-    const alreadyShown = sessionStorage.getItem(SESSION_FLAG) === '1';
+    const alreadyShown = sessionStorage.getItem(SESSION_FLAG) === "1";
     if (alreadyShown) {
       setShowBanner(false);
       return;
@@ -283,49 +290,86 @@ export default function StudentDashboard() {
         </div>
 
         {/* 🕒 Upcoming Live Sessions */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700"
-        >
-          <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-              Upcoming Live Sessions
-            </h3>
-          </div>
-          <div className="p-3 sm:p-4 space-y-2">
-            {liveSessions.length === 0 ? (
-              <p className="text-center text-slate-500 text-sm">
-                No upcoming sessions
+<motion.div
+  initial={{ opacity: 0, y: 10 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.3 }}
+  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700"
+>
+  <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+      Upcoming Live Sessions
+    </h3>
+
+    {/* View All Button */}
+    <button
+      onClick={() => navigate("/student/live-sessions")}
+      className="text-xs sm:text-sm px-3 py-1.5 bg-primary-50 dark:bg-primary-950/30 
+                 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-100 transition"
+    >
+      View Live Page →
+    </button>
+  </div>
+
+  <div className="p-3 sm:p-4 space-y-2">
+    {liveSessions.length === 0 ? (
+      <p className="text-center text-slate-500 text-sm">
+        No upcoming sessions
+      </p>
+    ) : (
+      liveSessions.map((s) => {
+        const now = Date.now();
+        const sessionTime = new Date(s.date).getTime();
+
+        let statusLabel = "Upcoming";
+        let color = "text-primary-600 dark:text-primary-400";
+
+        if (sessionTime - now <= 0 && s.status === "live") {
+          statusLabel = "Live Now";
+          color = "text-red-600 dark:text-red-400 font-bold";
+        } else {
+          const mins = Math.round((sessionTime - now) / 60000);
+          if (mins <= 0) {
+            statusLabel = "Starting...";
+          } else if (mins < 60) {
+            statusLabel = `Starts in ${mins} min`;
+          } else {
+            const hrs = Math.floor(mins / 60);
+            const rem = mins % 60;
+            statusLabel = `Starts in ${hrs}h ${rem}m`;
+          }
+        }
+
+        return (
+          <div
+            key={s._id}
+            onClick={() => navigate("/student/live-sessions")}
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 
+                       border-b border-slate-200 dark:border-slate-700 pb-3 last:border-none 
+                       hover:bg-slate-50 dark:hover:bg-slate-700/40 p-2 rounded-lg cursor-pointer transition"
+          >
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
+                {s.title}
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-500">
+                {new Date(s.date).toLocaleString()}
               </p>
-            ) : (
-              liveSessions.map((s) => (
-                <div
-                  key={s._id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3 last:border-none"
-                >
-                  <div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
-                      {s.title}
-                    </h4>
-                    <p className="text-xs sm:text-sm text-slate-500">
-                      {new Date(s.date).toLocaleString()}
-                    </p>
-                  </div>
-                  <a
-                    href={s.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-primary text-xs sm:text-sm px-3 py-1.5"
-                  >
-                    Join Live
-                  </a>
-                </div>
-              ))
-            )}
+            </div>
+
+            {/* Dynamic Countdown / Live Badge */}
+            <span
+              className={`text-xs sm:text-sm font-medium ${color}`}
+            >
+              {statusLabel} →
+            </span>
           </div>
-        </motion.div>
+        );
+      })
+    )}
+  </div>
+</motion.div>
+
 
         {/* 🎓 Courses Section */}
         <div className="flex flex-col lg:flex-row gap-5">

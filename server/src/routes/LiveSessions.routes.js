@@ -6,7 +6,10 @@ import {
   startLiveSession,
   endLiveSession,
   getLiveSessionStatus,
+  setLiveSessionStatus,
+  createLiveSession,
 } from "../controllers/liveSessions.controller.js";
+import { protect,authorize } from "../middlewares/auth.js";
 
 const router = express.Router();
 const CRON_SECRET = process.env.CRON_SECRET || "myStrongSecretKey";
@@ -17,14 +20,40 @@ router.get("/test", (req, res) => res.send("✅ LiveSessions router active!"));
 // ---------------------------------------------
 // ⚡ ADD THESE ROUTES (Admin Start/End)
 // ---------------------------------------------
-router.post("/start/:id", startLiveSession);
-router.post("/end/:id", endLiveSession);
+// 🆕 Create session (admin only)
+router.post(
+  "/",
+  protect,
+  authorize("admin", "superadmin"),
+  createLiveSession
+);
+// START SESSION (admin only)
+router.post(
+  "/start/:id",
+  protect,
+  authorize("admin", "superadmin"),
+  startLiveSession
+);
 
-// ---------------------------------------------
-// ⚡ ADD THIS ROUTE (Student status polling)
-// ---------------------------------------------
-router.get("/status/:id", getLiveSessionStatus);
+// END SESSION (admin only)
+router.post(
+  "/end/:id",
+  protect,
+  authorize("admin", "superadmin"),
+  endLiveSession
+);
 
+// MANUAL STATUS UPDATE
+router.post(
+  "/status/:id",
+  protect,
+  authorize("admin", "superadmin"),
+  setLiveSessionStatus
+);
+
+
+// manual status change by admin
+router.post("/status/:id",protect, authorize("admin","superadmin"), setLiveSessionStatus);
 // ---------------------------------------------
 // Existing CRON Auto-session
 // ---------------------------------------------
@@ -88,5 +117,7 @@ router.get("/latest", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 export default router;

@@ -75,13 +75,18 @@ app.use(
       "Cache-Control",
       "Expires",
       "Origin",
-      "X-Auth-Token"
+      "X-Auth-Token",
     ],
     exposedHeaders: ["Content-Disposition", "Authorization"],
     optionsSuccessStatus: 204,
     preflightContinue: false,
   })
 );
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+});
+
 
 /* ============================================================
    ⚙️ Core Middleware
@@ -92,7 +97,7 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 
 /* ============================================================
-   🧠 Safe Optional Middleware (Helmet, Compression)
+   🧠 Optional Middleware (Helmet, Compression)
 ============================================================ */
 try {
   const helmetModule = await import("helmet");
@@ -146,7 +151,7 @@ app.use("/uploads", express.static(uploadsDir));
 ============================================================ */
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api", adminManagementRoutes); // Add this line for student management routes
+app.use("/api", adminManagementRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile", profileRoutes);
@@ -159,11 +164,27 @@ app.use("/api/manage-admins", adminManagementRoutes);
 app.use("/api/journals/trade", tradeJournalRoutes);
 
 /* ============================================================
-   ❌ Fallback for Unknown Routes
+   🧩 SOCKET.IO SUPPORT HOOK (ADDED)
 ============================================================ */
-app.all("*", (req, res) => {
-  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+// This will be injected later from server.js
+// Example in server.js:
+//   const io = new Server(server, { cors: {...} });
+//   app.set("io", io);
+
+app.get("/api/socket-status", (req, res) => {
+  const io = req.app.get("io");
+  res.json({
+    socketAttached: !!io,
+    message: io ? "Socket.IO is ready" : "Socket.IO not initialized yet",
+  });
 });
+
+/* ============================================================
+   ❌ Fallback
+============================================================ */
+app.all("*", (req, res) =>
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` })
+);
 
 /* ============================================================
    🚨 Error Handling
