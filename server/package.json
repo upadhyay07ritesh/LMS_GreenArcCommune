@@ -24,7 +24,8 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.10.1",
     "redis": "^4.6.7",
-    "resend": "^6.4.1"
+    "resend": "^6.4.1",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"
