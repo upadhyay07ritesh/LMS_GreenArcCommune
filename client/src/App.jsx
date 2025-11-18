@@ -28,8 +28,9 @@ import AdminDetails from "./pages/admin/AdminDetails.jsx";
 import Messages from "./pages/student/MessagesSidebar.jsx";
 import LiveSessions from "./pages/student/LiveSessions.jsx";
 import AdminMessages from "./pages/admin/AdminMessages.jsx";
-import JournalEntry from "./pages/student/JournalEntry.jsx";  
+import TradeJournalEntry from "./pages/student/TradeJournalEntry.jsx";  
 import AdminProfile from "./pages/admin/AdminProfile.jsx"
+import TradesList from "./pages/student/TradesList.jsx";
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
@@ -68,7 +69,8 @@ export default function App() {
             <Route path="/student/courses/:id" element={<CourseDetail />} />
             <Route path="/student/messages" element={<Messages />} />
             <Route path="/student/live-sessions" element={<LiveSessions />} />
-            <Route path="/journal/new" element={<JournalEntry />} />
+            <Route path="/student/journal" element={<TradeJournalEntry />} />
+            <Route path="/student/trade-entries" element={<TradesList />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
           </Route>
         </Route>

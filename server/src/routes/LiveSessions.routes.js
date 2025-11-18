@@ -2,13 +2,32 @@ import express from "express";
 import { LiveSession } from "../models/LiveSessions.js";
 import { Course } from "../models/Course.js";
 
+import {
+  startLiveSession,
+  endLiveSession,
+  getLiveSessionStatus,
+} from "../controllers/liveSessions.controller.js";
+
 const router = express.Router();
 const CRON_SECRET = process.env.CRON_SECRET || "myStrongSecretKey";
 
-// 🧠 Test route (optional)
+// 🧠 Test route
 router.get("/test", (req, res) => res.send("✅ LiveSessions router active!"));
 
-// 🕒 CRON Trigger Route (POST)
+// ---------------------------------------------
+// ⚡ ADD THESE ROUTES (Admin Start/End)
+// ---------------------------------------------
+router.post("/start/:id", startLiveSession);
+router.post("/end/:id", endLiveSession);
+
+// ---------------------------------------------
+// ⚡ ADD THIS ROUTE (Student status polling)
+// ---------------------------------------------
+router.get("/status/:id", getLiveSessionStatus);
+
+// ---------------------------------------------
+// Existing CRON Auto-session
+// ---------------------------------------------
 router.post("/autosession", async (req, res) => {
   try {
     const auth = req.headers["x-cron-secret"];
@@ -23,12 +42,10 @@ router.post("/autosession", async (req, res) => {
 
     const randomCourse = courses[Math.floor(Math.random() * courses.length)];
 
-    // Schedule for 2 days later at 5PM
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + 2);
     nextDate.setHours(17, 0, 0, 0);
 
-    // Generate Jitsi link
     const safeCourse = randomCourse.title.replace(/\s+/g, "-");
     const randomCode = Date.now().toString(36);
     const meetLink = `https://meet.jit.si/${safeCourse}-${randomCode}`;
@@ -49,17 +66,19 @@ router.post("/autosession", async (req, res) => {
   }
 });
 
-// 🧾 Get all sessions
+// 🧾 All sessions
 router.get("/", async (req, res) => {
   try {
-    const sessions = await LiveSession.find().populate("course", "title").sort({ date: 1 });
+    const sessions = await LiveSession.find()
+      .populate("course", "title")
+      .sort({ date: 1 });
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 🕓 Get latest session
+// 🕓 Latest session
 router.get("/latest", async (req, res) => {
   try {
     const latest = await LiveSession.find().sort({ createdAt: -1 }).limit(1);

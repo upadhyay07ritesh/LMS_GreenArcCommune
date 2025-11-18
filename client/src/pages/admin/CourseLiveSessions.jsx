@@ -1,3 +1,5 @@
+// ---------------- ADMIN TEMPORARY SIMPLE VERSION ----------------
+
 import { useState, useEffect } from "react";
 import api from "../../api/axios.js";
 import { toast } from "react-toastify";
@@ -7,8 +9,6 @@ import {
   HiLink,
   HiAcademicCap,
   HiTrash,
-  HiPlay,
-  HiStop,
   HiVideoCamera,
 } from "react-icons/hi2";
 
@@ -32,12 +32,11 @@ export default function CourseLiveSessions() {
   });
   const [loading, setLoading] = useState(false);
   const [fetchingSessions, setFetchingSessions] = useState(true);
-  const [actionLoading, setActionLoading] = useState({}); // { [id]: true }
+  const [actionLoading, setActionLoading] = useState({});
 
   useEffect(() => {
     fetchCourses();
     fetchSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCourses = async () => {
@@ -58,7 +57,6 @@ export default function CourseLiveSessions() {
     setFetchingSessions(true);
     try {
       const { data } = await api.get("/admin/live-sessions");
-      // ensure array
       setSessions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load sessions:", err);
@@ -71,7 +69,7 @@ export default function CourseLiveSessions() {
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // Create Live Session
+  // CREATE session
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -79,13 +77,12 @@ export default function CourseLiveSessions() {
 
       const payload = {
         ...formData,
-        date: new Date(formData.date).toISOString(), // store as ISO
+        date: new Date(formData.date).toISOString(),
       };
 
       const { data } = await api.post("/admin/live-sessions", payload);
 
       toast.success("Session created successfully!");
-      // server returns created session object
       setSessions((prev) => [data, ...prev]);
       setFormData({ course: "", title: "", link: "", date: "" });
     } catch (err) {
@@ -109,84 +106,6 @@ export default function CourseLiveSessions() {
     } finally {
       setActionLoading((s) => ({ ...s, [id]: false }));
     }
-  };
-
-  // START SESSION
-  const startSession = async (id) => {
-  try {
-    setActionLoading((s) => ({ ...s, [id]: true }));
-
-    const { data } = await api.post(`/admin/live-sessions/start/${id}`);
-
-    // normalize the returned session object
-    const updated = data?.session ?? data;
-
-    if (updated && updated._id) {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s._id === id ? { ...s, status: "live" } : s
-        )
-      );
-    }
-
-    toast.success("Session started!");
-  } catch (err) {
-    console.error("Start error:", err);
-    toast.error("Failed to start session");
-  } finally {
-    setActionLoading((s) => ({ ...s, [id]: false }));
-  }
-};
-
-
-  // END SESSION
-const endSession = async (id) => {
-  try {
-    setActionLoading((s) => ({ ...s, [id]: true }));
-
-    const { data } = await api.post(`/admin/live-sessions/end/${id}`);
-
-    const updated = data?.session ?? data;
-
-    if (updated && updated._id) {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s._id === id ? { ...s, status: "ended" } : s
-        )
-      );
-    }
-
-    toast.info("Session ended");
-  } catch (err) {
-    console.error("End error:", err);
-    toast.error("Failed to end session");
-  } finally {
-    setActionLoading((s) => ({ ...s, [id]: false }));
-  }
-};
-
-
-  // UI badge rendering
-  const StatusBadge = ({ status }) => {
-    if (status === "live")
-      return (
-        <span className="px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-semibold">
-          Live Now
-        </span>
-      );
-
-    if (status === "ended")
-      return (
-        <span className="px-3 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-semibold">
-          Ended
-        </span>
-      );
-
-    return (
-      <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium">
-        Upcoming
-      </span>
-    );
   };
 
   return (
@@ -309,6 +228,7 @@ const endSession = async (id) => {
                     {toLocalDTValue(s.date).replace("T", " • ")}
                   </p>
 
+                  {/* DIRECT JOIN LINK */}
                   <a
                     href={s.link}
                     target="_blank"
@@ -317,44 +237,16 @@ const endSession = async (id) => {
                   >
                     <HiLink className="w-4 h-4" /> Meeting Link
                   </a>
-
-                  <div className="mt-2">
-                    <StatusBadge status={s.status} />
-                  </div>
                 </div>
 
-                {/* ACTION BUTTONS */}
-                <div className="flex items-center gap-3">
-                  {s.status !== "live" && (
-                    <button
-                      onClick={() => startSession(s._id)}
-                      className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                      disabled={!!actionLoading[s._id]}
-                    >
-                      <HiPlay className="w-4 h-4" />
-                      Start
-                    </button>
-                  )}
-
-                  {s.status === "live" && (
-                    <button
-                      onClick={() => endSession(s._id)}
-                      className="flex items-center gap-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                      disabled={!!actionLoading[s._id]}
-                    >
-                      <HiStop className="w-4 h-4" />
-                      End
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => handleDelete(s._id)}
-                    className="px-3 py-2 bg-slate-100 dark:bg-slate-700 dark:text-red-300 text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                    disabled={!!actionLoading[s._id]}
-                  >
-                    <HiTrash className="w-5 h-5" />
-                  </button>
-                </div>
+                {/* DELETE ONLY */}
+                <button
+                  onClick={() => handleDelete(s._id)}
+                  className="px-3 py-2 bg-slate-100 dark:bg-slate-700 dark:text-red-300 text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                  disabled={!!actionLoading[s._id]}
+                >
+                  <HiTrash className="w-5 h-5" />
+                </button>
               </div>
             ))}
           </div>
@@ -363,3 +255,5 @@ const endSession = async (id) => {
     </div>
   );
 }
+
+// ---------------- END TEMPORARY SIMPLE VERSION ----------------

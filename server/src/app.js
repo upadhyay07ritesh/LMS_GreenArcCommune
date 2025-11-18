@@ -21,6 +21,7 @@ import otpRoutes from "./routes/otp.routes.js";
 import forgotPasswordRoutes from "./routes/forgotPassword.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import liveSessionsRouter from "./routes/LiveSessions.routes.js";
+import tradeJournalRoutes from "./routes/tradeJournal.routes.js";
 
 const app = express();
 
@@ -52,7 +53,6 @@ const allowedOrigins = [
   "http://localhost:5173",
   "https://lms.greenarccommune.com",
   "https://lms-greenarccommune-1.onrender.com",
-  "https://lms-greenarccommune-2.onrender.com",
   ...dynamicLocalIPs,
 ];
 
@@ -73,8 +73,13 @@ app.use(
       "Accept",
       "Pragma",
       "Cache-Control",
+      "Expires",
+      "Origin",
+      "X-Auth-Token"
     ],
-    exposedHeaders: ["Content-Disposition"],
+    exposedHeaders: ["Content-Disposition", "Authorization"],
+    optionsSuccessStatus: 204,
+    preflightContinue: false,
   })
 );
 
@@ -151,6 +156,7 @@ app.use("/api/auth/forgot-password", forgotPasswordRoutes);
 app.use("/api/livesessions", liveSessionsRouter);
 app.use("/api/messages", messageRoutes);
 app.use("/api/manage-admins", adminManagementRoutes);
+app.use("/api/journals/trade", tradeJournalRoutes);
 
 /* ============================================================
    ❌ Fallback for Unknown Routes

@@ -56,3 +56,14 @@ body {
 .Toastify__toast-theme--colored.Toastify__toast--error {
   @apply bg-red-500;
 }
+
+/* 🔥 Remove spinner buttons from all number inputs */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield; /* Firefox */
+}

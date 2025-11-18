@@ -22,6 +22,7 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const location = useLocation();
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -40,7 +41,7 @@ export default function StudentLayout() {
     { path: "/student/", label: "Home", icon: HiHome },
     { path: "/student/courses", label: "Courses", icon: HiBookOpen },
     { path: "/student/live-sessions", label: "Live", icon: HiVideoCamera },
-    { path: "/student/journal", label: "Journal", icon: HiDocument },
+    { path: "/student/trade-entries", label: "Journal", icon: HiDocument },
     { path: "/student/profile", label: "Profile", icon: HiUser },
   ];
   const handleNav = (path) => navigate(path);

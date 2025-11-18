@@ -292,6 +292,9 @@ export default function ManageStudents() {
                   Email
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Contact
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   Student ID
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -359,6 +362,12 @@ export default function ManageStudents() {
                       <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                         <HiEnvelope className="w-4 h-4 text-slate-400" />
                         {student.email}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <HiEnvelope className="w-4 h-4 text-slate-400" />
+                        {student.phone || "-"}
                       </div>
                     </td>
 
