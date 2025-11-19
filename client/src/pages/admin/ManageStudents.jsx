@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios.js";
 import { toast } from "react-toastify";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   HiMagnifyingGlass,
   HiFunnel,
@@ -14,17 +14,25 @@ import {
   HiIdentification,
   HiAcademicCap,
   HiPlus,
+  HiPhone,
+  HiXMark,
 } from "react-icons/hi2";
 import TradingTrendLoader from "../../components/ui/ProTradingLoader.jsx";
 
 export default function ManageStudents() {
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterPayment, setFilterPayment] = useState("All");
   const itemsPerPage = 10;
+
+  // UI states for new filter toolbar
+  const [openFilterPanel, setOpenFilterPanel] = useState(false);
+  const [openStatusDropdown, setOpenStatusDropdown] = useState(false);
+  const [openPaymentDropdown, setOpenPaymentDropdown] = useState(false);
 
   const load = async () => {
     try {
@@ -56,16 +64,22 @@ export default function ManageStudents() {
     }
   };
 
-  // Filter students
+  // Filter students (keeps using filterStatus/filterPayment/searchTerm exactly)
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (student.studentId &&
         student.studentId.toLowerCase().includes(searchTerm.toLowerCase()));
+
     const matchesStatus =
       filterStatus === "All" || student.status === filterStatus.toLowerCase();
-    return matchesSearch && matchesStatus;
+
+    const matchesPayment =
+      filterPayment === "All" ||
+      student.paymentStatus === filterPayment.toLowerCase();
+
+    return matchesSearch && matchesStatus && matchesPayment;
   });
 
   // Pagination logic
@@ -111,6 +125,14 @@ export default function ManageStudents() {
     const timer = setTimeout(() => setLoading(false), 2000); // Simulate startup delay
     return () => clearTimeout(timer);
   }, []);
+
+  // Clear filters helper (keeps existing state names)
+  const clearFilters = () => {
+    setFilterStatus("All");
+    setFilterPayment("All");
+    setOpenStatusDropdown(false);
+    setOpenPaymentDropdown(false);
+  };
 
   if (loading) {
     // ✅ Main Loader Displayed Globally
@@ -208,40 +230,178 @@ export default function ManageStudents() {
         </motion.div>
       </div>
 
-      {/* Search and Filters */}
+      {/* ===== NEW: Premium Filter Toolbar (REPLACES old Search & Filters) ===== */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700"
+        transition={{ delay: 0.2 }}
+        className="backdrop-blur-xl bg-white/80 dark:bg-slate-800/70 
+             border border-slate-200/50 dark:border-slate-700/50 
+             p-5 rounded-2xl shadow-md"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <HiMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Search Bar */}
+          <motion.div whileFocus={{ scale: 1.01 }} className="relative flex-1">
+            <HiMagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+
             <input
               type="text"
               placeholder="Search by name, email, or student ID..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-12 pr-4 py-3 rounded-xl
+              bg-white dark:bg-slate-900
+              border border-slate-200 dark:border-slate-700
+              text-slate-900 dark:text-white
+              shadow-sm hover:shadow-md 
+              focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+              transition-all"
             />
-          </div>
+          </motion.div>
 
-          {/* Status Filter */}
-          <div className="relative">
-            <HiFunnel className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border-2 border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all appearance-none"
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Banned">Banned</option>
-            </select>
+          {/* Filter Buttons */}
+          <div className="flex items-center gap-3">
+            {/* STATUS FILTER */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setOpenStatusDropdown((p) => !p);
+                  setOpenPaymentDropdown(false);
+                }}
+                className="filter-btn"
+              >
+                <HiFunnel className="w-4 h-4 text-slate-500" />
+                <span className="text-sm">
+                  {filterStatus === "All" ? "Status" : filterStatus}
+                </span>
+                <span className="text-slate-400">▾</span>
+              </button>
+
+              <AnimatePresence>
+                {openStatusDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    className="dropdown-panel"
+                  >
+                    {["All", "Active", "Banned"].map((opt) => (
+                      <div
+                        key={opt}
+                        className={`dropdown-item ${
+                          filterStatus === opt ? "dropdown-item-active" : ""
+                        }`}
+                        onClick={() => {
+                          setFilterStatus(opt);
+                          setCurrentPage(1);
+                          setOpenStatusDropdown(false);
+                        }}
+                      >
+                        {opt}
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* PAYMENT FILTER */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setOpenPaymentDropdown((p) => !p);
+                  setOpenStatusDropdown(false);
+                }}
+                className="filter-btn"
+              >
+                <HiAcademicCap className="w-4 h-4 text-slate-500" />
+                <span className="text-sm">
+                  {filterPayment === "All" ? "Payment" : filterPayment}
+                </span>
+                <span className="text-slate-400">▾</span>
+              </button>
+
+              <AnimatePresence>
+                {openPaymentDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    className="dropdown-panel"
+                  >
+                    {["All", "Paid", "Demo"].map((opt) => (
+                      <div
+                        key={opt}
+                        className={`dropdown-item ${
+                          (opt === "All" && filterPayment === "All") ||
+                          filterPayment.toLowerCase() === opt.toLowerCase()
+                            ? "dropdown-item-active"
+                            : ""
+                        }`}
+                        onClick={() => {
+                          setFilterPayment(
+                            opt === "All" ? "All" : opt.toLowerCase()
+                          );
+                          setCurrentPage(1);
+                          setOpenPaymentDropdown(false);
+                        }}
+                      >
+                        {opt}
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
+
+        {/* Filter Chips */}
+        {(filterStatus !== "All" || filterPayment !== "All") && (
+          <div className="flex items-center gap-2 flex-wrap mt-4">
+            {/* Status Chip */}
+            {filterStatus !== "All" && (
+              <div className="chip chip-primary">
+                Status: {filterStatus}
+                <HiXMark
+                  className="chip-close"
+                  onClick={() => {
+                    setFilterStatus("All");
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Payment Chip */}
+            {filterPayment !== "All" && (
+              <div className="chip chip-teal">
+                Payment: {filterPayment}
+                <HiXMark
+                  className="chip-close"
+                  onClick={() => {
+                    setFilterPayment("All");
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Clear all */}
+            <button
+              onClick={() => {
+                clearFilters();
+                setCurrentPage(1);
+              }}
+              className="clear-btn"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Table Header with Count */}
@@ -286,7 +446,7 @@ export default function ManageStudents() {
                 </th>
 
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  Student
+                  Student Name
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   Email
@@ -312,7 +472,7 @@ export default function ManageStudents() {
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
+                  <td colSpan="8" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
                         <HiUsers className="w-8 h-8 text-slate-400" />
@@ -366,7 +526,7 @@ export default function ManageStudents() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <HiEnvelope className="w-4 h-4 text-slate-400" />
+                        <HiPhone className="w-4 h-4 text-slate-400" />
                         {student.phone || "-"}
                       </div>
                     </td>
@@ -394,10 +554,13 @@ export default function ManageStudents() {
                         )}
 
                         {student.paymentStatus === "demo" && (
-                            <>
-                              <HiNoSymbol className="w-3.5 h-3.5" /> Demo
-                            </>
-                          )}
+                          <>
+                            <HiNoSymbol className="w-3.5 h-3.5" /> Demo
+                          </>
+                        )}
+
+                        {!["paid", "demo"].includes(student.paymentStatus) &&
+                          "Unknown"}
                       </span>
                     </td>
 

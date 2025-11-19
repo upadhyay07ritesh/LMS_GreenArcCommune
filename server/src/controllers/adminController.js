@@ -392,7 +392,7 @@ export const createStudent = asyncHandler(async (req, res) => {
   const newStudent = await User.create({
     name: name.trim(),
     email: email.trim().toLowerCase(),
-    phone,
+    phone: phone ? phone.trim() : undefined,
     course: selectedCourse._id,
     dob: parsedDOB,
     password: tempPassword, // RAW password here
@@ -687,6 +687,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
   student.name = name || student.name;
   student.email = email || student.email;
   student.phone = phone || student.phone;
+  student.course = course || student.course;
   // Only assign parsed DOB if provided; otherwise keep existing
   if (parsedDOB !== null) student.dob = parsedDOB;
   student.aadharNumber = cleanAadharNumber || student.aadharNumber;

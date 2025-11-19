@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
@@ -49,11 +49,15 @@ export default function AddStudent() {
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [profilePhoto, setProfilePhoto] = useState(null); // actual File (when user selects)
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(null); // URL or existing avatar url
   const [studentId, setStudentId] = useState("");
   const [courses, setCourses] = useState([]);
   const { id } = useParams();
   const isEdit = Boolean(id);
+
+  // keep a ref to last created object URL to revoke it on change/unmount
+  const lastObjectUrlRef = useRef(null);
 
   // Fetch Student ID + Courses
   useEffect(() => {
@@ -61,34 +65,59 @@ export default function AddStudent() {
       loadStudent();
     } else {
       fetchStudentId();
+      // ensure no stale preview when adding new
+      setProfilePhotoPreview(null);
+      setProfilePhoto(null);
     }
     fetchCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      // cleanup created object URL
+      if (lastObjectUrlRef.current) {
+        URL.revokeObjectURL(lastObjectUrlRef.current);
+        lastObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const loadStudent = async () => {
     try {
       const { data } = await api.get(`/admin/students/${id}`);
 
       setStudentId(data.studentId);
+
       const formatDateForInput = (isoDate) => {
         if (!isoDate) return "";
+        // if passed already in DD/MM/YYYY, return it
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(isoDate)) return isoDate;
         const dateObj = new Date(isoDate);
+        if (isNaN(dateObj.getTime())) return "";
         const d = String(dateObj.getDate()).padStart(2, "0");
         const m = String(dateObj.getMonth() + 1).padStart(2, "0");
         const y = dateObj.getFullYear();
-        return `${d}/${m}/${y}`; // form ke DD/MM/YYYY format ke hisaab se
+        return `${d}/${m}/${y}`; // form expects DD/MM/YYYY
       };
 
       setFormData({
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
+        name: data.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
         course: data.course?._id || "",
         dob: formatDateForInput(data.dob),
-        gender: data.gender,
-        paymentStatus: data.paymentStatus,
-        aadharNumber: data.aadharNumber,
+        gender: data.gender || "male",
+        paymentStatus: data.paymentStatus || "demo",
+        aadharNumber: data.aadharNumber || "",
       });
+
+      // set existing avatar preview (so user sees current photo). Do not convert to File.
+      if (data.avatar) {
+        setProfilePhotoPreview(data.avatar);
+      } else {
+        setProfilePhotoPreview(null);
+      }
     } catch (err) {
       toast.error("Failed to load student");
     }
@@ -121,34 +150,59 @@ export default function AddStudent() {
   const handleChange = (e) => {
     const { name, value, selectionStart } = e.target;
 
-    // DOB formatting — DD/MM/YYYY
-    if (name === "dob") {
-      const cursor = selectionStart;
-      const prevLength = formData.dob?.length || 0;
-
-      let digits = value.replace(/\D/g, "");
-      let formatted = "";
-
-      for (let i = 0; i < digits.length; i++) {
-        if (i === 2) formatted += "/";
-        if (i === 4) formatted += "/";
-        if (i === 8) break;
-        formatted += digits[i];
-      }
-
-      e.target.value = formatted;
-
-      const added = formatted.length - prevLength;
-      const newCursorPos = cursor + (added > 0 ? 1 : 0);
-
-      setTimeout(() => {
-        e.target.setSelectionRange(newCursorPos, newCursorPos);
-      }, 0);
-
-      setFormData((prev) => ({ ...prev, dob: formatted }));
+    // PHONE: always keep only digits and max 10
+    if (name === "phone") {
+      const onlyDigits = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, phone: onlyDigits }));
+      if (errors.phone) setErrors((prev) => ({ ...prev, phone: "" }));
       return;
     }
 
+    // DOB formatting — DD/MM/YYYY with cursor preservation
+    if (name === "dob") {
+      const cursor = selectionStart ?? value.length;
+      const prev = formData.dob ?? "";
+      const prevDigits = prev.replace(/\D/g, "");
+      const newDigits = value.replace(/\D/g, "").slice(0, 8); // allow up to DDMMYYYY
+
+      // Build formatted string
+      let formatted = "";
+      for (let i = 0; i < newDigits.length; i++) {
+        if (i === 2) formatted += "/";
+        if (i === 4) formatted += "/";
+        formatted += newDigits[i];
+      }
+
+      // Calculate cursor position more reliably:
+      // Count number of slashes before the original cursor and after formatting
+      const beforeCursorDigits = value.slice(0, cursor).replace(/\D/g, "")
+        .length;
+      let newCursor = beforeCursorDigits;
+      // add slash offsets
+      if (beforeCursorDigits > 2) newCursor += 1;
+      if (beforeCursorDigits > 4) newCursor += 1;
+      // ensure within bounds
+      newCursor = Math.max(0, Math.min(formatted.length, newCursor));
+
+      setFormData((prevState) => ({ ...prevState, dob: formatted }));
+
+      // Restore cursor after React updates
+      setTimeout(() => {
+        try {
+          if (document.activeElement && document.activeElement.name === "dob") {
+            document.activeElement.setSelectionRange(newCursor, newCursor);
+          }
+        } catch (err) {
+          // ignore selection errors on some browsers
+        }
+      }, 0);
+
+      if (errors.dob) setErrors((prev) => ({ ...prev, dob: "" }));
+      return;
+    }
+
+    // For select components that pass event-like value as string (FormSelect may do e.target.value or direct value),
+    // the existing pattern uses e.target - keep the same behaviour:
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -166,7 +220,7 @@ export default function AddStudent() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files ? e.target.files[0] : null;
     if (file && file.size > 5 * 1024 * 1024) {
       setErrors((prev) => ({
         ...prev,
@@ -174,7 +228,27 @@ export default function AddStudent() {
       }));
       return;
     }
-    setProfilePhoto(file);
+
+    // revoke previous object URL
+    if (lastObjectUrlRef.current) {
+      URL.revokeObjectURL(lastObjectUrlRef.current);
+      lastObjectUrlRef.current = null;
+    }
+
+    if (file) {
+      const objUrl = URL.createObjectURL(file);
+      lastObjectUrlRef.current = objUrl;
+      setProfilePhotoPreview(objUrl);
+      setProfilePhoto(file);
+    } else {
+      // if user cleared file input
+      setProfilePhoto(null);
+      // keep existing preview if editing; otherwise clear
+      if (!isEdit) setProfilePhotoPreview(null);
+    }
+
+    // clear any file error
+    if (errors.profilePhoto) setErrors((prev) => ({ ...prev, profilePhoto: "" }));
   };
 
   const validateForm = () => {
@@ -194,7 +268,7 @@ export default function AddStudent() {
     else if (!phoneRegex.test(formData.phone))
       newErrors.phone = "Phone must be 10 digits";
 
-    if (!formData.course.trim()) newErrors.course = "Course is required";
+    if (!String(formData.course).trim()) newErrors.course = "Course is required";
 
     // DOB Validation
     if (!formData.dob.trim()) {
@@ -203,14 +277,6 @@ export default function AddStudent() {
       const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d{2}$/;
       if (!regex.test(formData.dob)) newErrors.dob = "Use DD/MM/YYYY format";
     }
-
-    // Aadhar validation only when paid
-    // if (formData.paymentStatus === "paid") {
-    //   if (!formData.aadharNumber.trim())
-    //     newErrors.aadharNumber = "Aadhar required for paid";
-    //   else if (!/^\d{12}$/.test(formData.aadharNumber))
-    //     newErrors.aadharNumber = "Aadhar must be 12 digits";
-    // }
 
     // Aadhar is optional, validate only if entered
     if (formData.aadharNumber.trim()) {
@@ -229,16 +295,21 @@ export default function AddStudent() {
       .trim()
       .toLowerCase()
       .split(" ")
-      .map((w) => w[0])
+      .map((w) => w[0] || "")
       .join("")
       .slice(0, 4);
 
-    const year = formData.dob.split("/")[2];
+    const parts = (formData.dob || "").split("/");
+    const year = parts.length >= 3 ? parts[2] : "0000";
     return `${initials}${year}`;
   };
 
   const formatDateForBackend = (dateStr) => {
-    const [d, m, y] = dateStr.split("/");
+    if (!dateStr) return "";
+    const parts = dateStr.split("/");
+    if (parts.length !== 3) return dateStr;
+    const [d, m, y] = parts;
+    // return YYYY-MM-DD (safe ISO-like)
     return `${y}-${m}-${d}`;
   };
 
@@ -265,9 +336,12 @@ export default function AddStudent() {
       submitData.append("status", "active");
       submitData.append("gender", formData.gender);
       submitData.append("paymentStatus", formData.paymentStatus);
-      submitData.append("aadharNumber", formData.aadharNumber);
+      submitData.append("aadharNumber", formData.aadharNumber || "");
 
-      if (profilePhoto) submitData.append("profilePhoto", profilePhoto);
+      // If user selected a new File, append it. If editing and no new file, we don't append (backend should keep existing).
+      if (profilePhoto instanceof File) {
+        submitData.append("profilePhoto", profilePhoto);
+      }
 
       if (isEdit) {
         await api.put(`/admin/students/${id}`, submitData, {
@@ -294,6 +368,8 @@ export default function AddStudent() {
     setProfilePhoto(null);
     setErrors({});
     fetchStudentId();
+    // if adding new, clear preview; if editing, keep existing preview from server
+    if (!isEdit) setProfilePhotoPreview(null);
   };
 
   return (
@@ -401,6 +477,8 @@ export default function AddStudent() {
                 error={errors.phone}
                 icon={HiPhone}
                 maxLength="10"
+                // optional: pattern to hint mobile validation
+                inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
               />
             </div>
 
@@ -459,15 +537,9 @@ export default function AddStudent() {
               name="aadharNumber"
               value={formData.aadharNumber}
               onChange={handleChange}
-              // placeholder={
-              //   formData.paymentStatus === "demo"
-              //     ? "Not required for Demo"
-              //     : "Enter 12-digit Aadhar"
-              // }
               placeholder="Enter 12-digit Aadhar (Optional)"
               error={errors.aadharNumber}
               icon={HiIdentification}
-              // disabled={formData.paymentStatus === "demo"}
               disabled={false}
             />
 
@@ -480,6 +552,8 @@ export default function AddStudent() {
                 accept="image/*"
                 hint="PNG, JPG, JPEG — Max 5MB"
                 error={errors.profilePhoto}
+                // pass preview URL to FileUpload if it supports preview prop
+                previewUrl={profilePhotoPreview}
               />
             </div>
           </div>

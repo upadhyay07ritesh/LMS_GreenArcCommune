@@ -2,6 +2,10 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { Enrollment } from "./Enrollment.js";
+import {
+  ALLOWED_PERMISSIONS,
+  SUPERADMIN_PERMISSIONS,
+} from "../constants/permissions.js";
 
 /* ============================================================
    🧠 USER SCHEMA
@@ -13,10 +17,24 @@ const userSchema = new mongoose.Schema(
     /* 🔹 Basic Info */
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
-    password: { type: String, required: true, select: false, minlength: 6 },
+    phone: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+      validate: {
+        validator: (v) => /^[0-9]{10}$/.test(v),
+        message: "Phone number must be a valid 10-digit number",
+      },
+    },
 
+    password: { type: String, required: true, select: false, minlength: 6 },
     /* 🔹 Role Management */
-    role: { type: String, enum: ["student", "admin","superadmin"], default: "student" },
+    role: {
+      type: String,
+      enum: ["student", "admin", "superadmin"],
+      default: "student",
+    },
     status: { type: String, enum: ["active", "banned"], default: "active" },
     /* 🔹 Common Fields */
     aadharNumber: {
@@ -49,7 +67,10 @@ const userSchema = new mongoose.Schema(
     /* 🔹 Admin Metadata */
     adminMeta: {
       department: { type: String },
-      permissions: [{ type: String }],
+      permissions: {
+        type: mongoose.Schema.Types.Mixed, // store as { dashboard: true, courses: false, ... }
+        default: {},
+      },
     },
 
     /* 🔹 Student Details */
@@ -130,6 +151,27 @@ userSchema.pre("save", async function (next) {
   }
 
   next();
+  // inside userSchema.pre("save", async function(next) { ... })
+  function sanitizePermissions(perms) {
+    if (!perms || typeof perms !== "object") return {};
+    return Object.keys(perms).reduce((acc, k) => {
+      if (ALLOWED_PERMISSIONS.includes(k)) acc[k] = !!perms[k];
+      return acc;
+    }, {});
+  }
+
+  // after existing auto-id and password logic, add:
+  if (this.isModified("adminMeta") && this.adminMeta?.permissions) {
+    this.adminMeta.permissions = sanitizePermissions(
+      this.adminMeta.permissions
+    );
+  }
+
+  // auto-grant for superadmin
+  if (this.isNew && this.role === "superadmin") {
+    this.adminMeta = this.adminMeta || {};
+    this.adminMeta.permissions = { ...SUPERADMIN_PERMISSIONS };
+  }
 });
 
 /* ============================================================
@@ -162,6 +204,24 @@ userSchema.post("findOneAndDelete", async function (doc) {
     console.error("❌ Enrollment cleanup failed:", err.message);
   }
 });
+
+userSchema.methods.hasPermission = function (perm) {
+  if (this.role === "superadmin") return true;
+  return !!(
+    this.adminMeta &&
+    this.adminMeta.permissions &&
+    this.adminMeta.permissions[perm]
+  );
+};
+
+userSchema.methods.canAssignPermission = function (perm) {
+  // who can assign this permission? only superadmin can assign manageAdmins, else admin can assign subset
+  if (this.role === "superadmin") return true;
+  // example policy: normal admin cannot grant 'manageAdmins' or 'superSensitive' perms
+  if (perm === "manageAdmins") return false;
+  // other perms: allow if admin has them
+  return this.hasPermission(perm);
+};
 
 /* ============================================================
    ⚙️ INDEXES
