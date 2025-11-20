@@ -37,7 +37,7 @@ router.get("/student/inbox", protect, getStudentInbox);
 router.patch("/student/:id/read", protect, markAsRead);
 router.patch("/student/mark-all-read", protect, markAllAsRead);
 // POST /messages/admin/send-course
-router.post("/messages/admin/send-course", async (req, res) => {
+router.post("/admin/send-course", async (req, res) => {
   const { course, title, body } = req.body;
   if (!course || !title || !body)
     return res.status(400).json({ message: "Missing fields" });

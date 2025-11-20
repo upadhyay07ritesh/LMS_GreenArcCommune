@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import NotificationBanner from "../components/NotificationBanner.jsx";
 import MessagesSidebar from "../pages/student/MessagesSidebar.jsx";
+import TradingCalculatorModal from "../pages/student/TradeCalculator.jsx";
 import {
   HiHome,
   HiBookOpen,
@@ -55,6 +56,7 @@ export default function StudentLayout() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
+        <TradingCalculatorModal />
         <MessagesSidebar />
       </main>
 
