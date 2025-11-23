@@ -21,6 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       })()}
       <DarkModeProvider>
         <BrowserRouter>
+        
           <App />
         </BrowserRouter>
       </DarkModeProvider>

@@ -31,6 +31,8 @@ import AdminMessages from "./pages/admin/AdminMessages.jsx";
 import TradeJournalEntry from "./pages/student/TradeJournalEntry.jsx";  
 import AdminProfile from "./pages/admin/AdminProfile.jsx"
 import TradesList from "./pages/student/TradesList.jsx";
+import TradeDetails from "./pages/student/TradeDetails.jsx";
+import ScrollToTop from './components/ScrollToTop.jsx'
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
@@ -51,6 +53,7 @@ export default function App() {
   }
   return (
     <>
+    <ScrollToTop />
       {/* <ScreenProtector /> */}
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
@@ -71,6 +74,7 @@ export default function App() {
             <Route path="/student/live-sessions" element={<LiveSessions />} />
             <Route path="/student/journal" element={<TradeJournalEntry />} />
             <Route path="/student/trade-entries" element={<TradesList />} />
+            <Route path="/student/trade-entries/:id" element={<TradeDetails />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
           </Route>
         </Route>

@@ -30,7 +30,7 @@ const app = express();
 ============================================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, "../../uploads");
+const uploadsDir = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 /* ============================================================
@@ -104,9 +104,11 @@ try {
   const helmet = helmetModule.default;
   app.use(
     helmet({
-      crossOriginEmbedderPolicy: false,
-      contentSecurityPolicy: false,
-    })
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+})
+
   );
   console.log("✅ Helmet enabled");
 } catch {

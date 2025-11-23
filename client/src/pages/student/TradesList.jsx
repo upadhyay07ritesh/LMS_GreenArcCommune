@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+// TradesList.jsx (Ultra Fast v2.0)
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -12,19 +19,19 @@ import {
   FaTimes,
   FaPlus,
   FaSearch,
+  FaChevronDown,
 } from "react-icons/fa";
 import { format } from "date-fns";
 import { MdShowChart } from "react-icons/md";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import "jspdf-autotable"; // plugin registers doc.autoTable
+import { FixedSizeList as List } from "react-window";
 
+const INSTRUMENTS = ["Gold", "Bitcoin", "Nifty", "BankNifty", "Crude Oil"];
 
-const INSTRUMENTS = [
-  "Gold",
-  "Bitcoin",
-  "Ethereum",
-  "Nifty",
-  "BankNifty",
-  "Crude Oil",
-];
+const ROW_HEIGHT = 64; // px for virtualized rows (adjust if you adjust row padding)
 
 const ROW_ANIM = {
   initial: { opacity: 0, y: 8 },
@@ -32,10 +39,12 @@ const ROW_ANIM = {
   exit: { opacity: 0, y: 8 },
 };
 
-const TradesList = () => {
+export default function TradesList() {
   const { user } = useSelector((s) => s.auth);
   const navigate = useNavigate();
-  const [trades, setTrades] = useState([]); // master list
+
+  // master data + UI state
+  const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -44,70 +53,96 @@ const TradesList = () => {
   const [result, setResult] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [sortKey, setSortKey] = useState("date"); // 'date' | 'amount'
-  const [sortOrder, setSortOrder] = useState("desc"); // 'asc' | 'desc'
+  const [sortKey, setSortKey] = useState("date");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   // search + pagination
-  const [query, setQuery] = useState("");
+  const [rawQuery, setRawQuery] = useState("");
+  const [query, setQuery] = useState(""); // debounced
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
-  // modal
-  const [selectedTrade, setSelectedTrade] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  // UI extras
+  const [showExport, setShowExport] = useState(false);
+  const exportRef = useRef(null);
+  const searchDebounceRef = useRef(null);
+
+  // virtualization ref
+  const listRef = useRef(null);
+
+  // modal-ish / delete
   const [deletingId, setDeletingId] = useState(null);
 
+  // fetch trades
   useEffect(() => {
+    let mounted = true;
+    const fetchTrades = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get("/journals/trade/my-trades");
+        const payload = res.data;
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload.trades)
+          ? payload.trades
+          : payload.data || [];
+        if (mounted) setTrades(list);
+      } catch (err) {
+        console.error("Fetch trades error:", err);
+        if (mounted) setError("Failed to load trades");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
     fetchTrades();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const fetchTrades = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get("/journals/trade/my-trades");
-      const payload = res.data;
-      const list = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload.trades)
-        ? payload.trades
-        : payload.data || []; // fallback
-      setTrades(list);
-    } catch (err) {
-      console.error("Fetch trades error:", err);
-      setError("Failed to load trades");
-    } finally {
-      setLoading(false);
+  // click outside for export dropdown
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (exportRef.current && !exportRef.current.contains(e.target)) {
+        setShowExport(false);
+      }
     }
-  };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // derived filtered & sorted list (memoized)
+  // debounced search
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setQuery(rawQuery.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(searchDebounceRef.current);
+  }, [rawQuery]);
+
+  // memoized filtered + sorted list
   const filtered = useMemo(() => {
-    let data = Array.isArray(trades) ? [...trades] : [];
+    let data = Array.isArray(trades) ? trades.slice() : [];
 
     if (instrument !== "all") {
       data = data.filter((t) => t.instrument === instrument);
     }
-
     if (result !== "all") {
       data = data.filter((t) => t.result === result);
     }
-
     if (fromDate) {
       const from = new Date(fromDate);
       data = data.filter((t) => new Date(t.datetime) >= from);
     }
-
     if (toDate) {
       const to = new Date(toDate);
       to.setHours(23, 59, 59, 999);
       data = data.filter((t) => new Date(t.datetime) <= to);
     }
-
-    // search query applied here (matches instrument, description, entryPrice, exitPrice)
-    if (query && query.trim() !== "") {
-      const q = query.trim().toLowerCase();
+    if (query) {
+      const q = query.toLowerCase();
       data = data.filter((t) => {
         const desc = (t.description || "").toLowerCase();
         const inst = (t.instrument || "").toLowerCase();
@@ -122,185 +157,380 @@ const TradesList = () => {
       });
     }
 
+    // stable sort
     data.sort((a, b) => {
       if (sortKey === "date") {
         const ad = new Date(a.datetime).getTime();
         const bd = new Date(b.datetime).getTime();
         return sortOrder === "asc" ? ad - bd : bd - ad;
       }
-
       if (sortKey === "amount") {
         const aa = Number(a.amount || 0);
         const ba = Number(b.amount || 0);
         return sortOrder === "asc" ? aa - ba : ba - aa;
       }
-
       return 0;
     });
 
     return data;
   }, [trades, instrument, result, fromDate, toDate, sortKey, sortOrder, query]);
 
-  const toggleSort = () => {
-    setSortKey((k) => (k === "date" ? "amount" : "date"));
-    setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
-  };
-
-  // pagination slice
+  // totals memoized
   const total = filtered.length;
+  const totalProfit = useMemo(
+    () =>
+      trades
+        .filter((t) => Number(t.amount) > 0)
+        .reduce((a, b) => a + Number(b.amount), 0),
+    [trades]
+  );
+  const totalLoss = useMemo(
+    () =>
+      trades
+        .filter((t) => Number(t.amount) < 0)
+        .reduce((a, b) => a + Math.abs(Number(b.amount)), 0),
+    [trades]
+  );
+
+  // pagination helpers (works with virtualization: we scroll to item)
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalPages]);
 
+  // When page changes, scroll virtualized list to start of page
+  useEffect(() => {
+    if (listRef.current) {
+      const startIndex = (page - 1) * pageSize;
+      // clamp
+      const idx = Math.min(Math.max(0, startIndex), Math.max(0, total - 1));
+      try {
+        listRef.current.scrollToItem(idx, "start");
+      } catch (e) {
+        // ignore if not possible
+      }
+    }
+  }, [page, pageSize, total]);
+
+  // paginated slice for display text (we still render virtualized full filtered list,
+  // but we keep paginated numbers and "Showing X - Y of Z")
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
     return filtered.slice(start, start + pageSize);
   }, [filtered, page, pageSize]);
 
-  const openModal = (trade) => {
-    setSelectedTrade(trade);
-    setModalOpen(true);
-  };
+  // EXPORT helpers (export filtered results and filters metadata)
+  const exportData = useMemo(
+    () =>
+      filtered.map((t) => ({
+        Instrument: t.instrument,
+        Entry: t.entryPrice,
+        Exit: t.exitPrice,
+        Quantity: `${t.quantity} ${t.unit}`,
+        Result: Number(t.amount) >= 0 ? "Profit" : "Loss",
+        Amount: t.amount,
+        Date: format(new Date(t.datetime), "dd MMM yyyy, hh:mm a"),
+      })),
+    [filtered]
+  );
 
-  const closeModal = () => {
-    setModalOpen(false);
-    setSelectedTrade(null);
-  };
+  const exportCSV = useCallback(() => {
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const csvOutput = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csvOutput], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, `Trades_${Date.now()}.csv`);
+    setShowExport(false);
+  }, [exportData]);
 
-  const deleteTrade = async (id) => {
-    if (!confirm("Delete this trade?")) return;
-    try {
-      setDeletingId(id);
-      await api.delete(`/journals/trade/${id}`);
-      setTrades((prev) => prev.filter((t) => (t._id || t.id) !== id));
-      if (selectedTrade && (selectedTrade._id || selectedTrade.id) === id) {
-        closeModal();
+  const exportExcel = useCallback(() => {
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Trades");
+    XLSX.writeFile(wb, `Trades_${Date.now()}.xlsx`);
+    setShowExport(false);
+  }, [exportData]);
+
+  const exportPDF = useCallback(() => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("Trade Report", 14, 15);
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+
+    const filterLines = [
+      `Instrument: ${instrument !== "all" ? instrument : "All"}`,
+      `Result: ${result !== "all" ? result : "All"}`,
+      `From: ${fromDate || "—"}`,
+      `To: ${toDate || "Present"}`,
+      `Search: ${query || "All"}`,
+      `Sorted by: ${sortKey} ${sortOrder}`,
+    ];
+
+    let y = 25;
+    filterLines.forEach((line) => {
+      doc.text(line, 14, y);
+      y += 6;
+    });
+
+    // doc.autoTable is available because of import 'jspdf-autotable'
+    // head + body
+    doc.autoTable({
+      startY: y + 4,
+      head: [
+        ["Instrument", "Entry", "Exit", "Qty", "Result", "Amount", "Date"],
+      ],
+      body: exportData.map((row) => [
+        row.Instrument,
+        row.Entry,
+        row.Exit,
+        row.Quantity,
+        row.Result,
+        row.Amount,
+        row.Date,
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [0, 150, 0] },
+      theme: "grid",
+    });
+
+    doc.save(`Trades_${Date.now()}.pdf`);
+    setShowExport(false);
+  }, [
+    exportData,
+    instrument,
+    result,
+    fromDate,
+    toDate,
+    query,
+    sortKey,
+    sortOrder,
+  ]);
+
+  // delete
+  const deleteTrade = useCallback(
+    async (id) => {
+      if (!confirm("Delete this trade?")) return;
+      try {
+        setDeletingId(id);
+        await api.delete(`/journals/trade/${id}`);
+        setTrades((prev) => prev.filter((t) => (t._id || t.id) !== id));
+      } catch (err) {
+        console.error("Delete trade error:", err);
+        alert(err?.response?.data?.message || "Failed to delete");
+      } finally {
+        setDeletingId(null);
       }
-    } catch (err) {
-      console.error("Delete trade error:", err);
-      alert(err?.response?.data?.message || "Failed to delete");
-    } finally {
-      setDeletingId(null);
-    }
+    },
+    [setTrades]
+  );
+
+  // toggle sort
+  const toggleSort = () => {
+    setSortKey((k) => (k === "date" ? "amount" : "date"));
+    setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
   };
 
-  // helper: page numbers window (max 7)
-  const pageWindow = () => {
-    const maxButtons = 7;
-    const pages = [];
-    let start = Math.max(1, page - Math.floor(maxButtons / 2));
-    let end = start + maxButtons - 1;
-    if (end > totalPages) {
-      end = totalPages;
-      start = Math.max(1, end - maxButtons + 1);
-    }
-    for (let p = start; p <= end; p++) pages.push(p);
-    return pages;
-  };
+  // Virtualized row renderer (desktop)
+  const Row = useCallback(
+    ({ index, style, data }) => {
+      // data = filtered array
+      const t = data[index];
+      if (!t) return null;
+      const id = t._id || t.id;
+      const isProfit = Number(t.amount) >= 0;
 
+      return (
+        <div
+          style={style}
+          onClick={() =>
+            navigate(`/student/trade-entries/${id}`, {
+              state: { trade: t },
+            })
+          }
+          className={`flex items-center gap-4 px-4 ${
+            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+          } hover:bg-green-50 cursor-pointer`}
+        >
+          {/* status bar */}
+          <div
+            className="w-1 h-14 rounded-r-md"
+            style={{ backgroundColor: isProfit ? "#34d399" : "#fb7185" }}
+          />
+          <div className="flex-1 py-4 grid grid-cols-12 gap-4 items-center">
+            <div className="col-span-2 font-medium text-gray-800">
+              {t.instrument}
+            </div>
+            <div className="col-span-1 text-gray-700">{t.entryPrice}</div>
+            <div className="col-span-1 text-gray-700">{t.exitPrice}</div>
+            <div className="col-span-1 text-gray-700">
+              {t.quantity} {t.unit}
+            </div>
+            <div className="col-span-2">
+              <span
+                className={`inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-lg ${
+                  isProfit
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {isProfit ? (
+                  <FaArrowUp className="text-xs" />
+                ) : (
+                  <FaArrowDown className="text-xs" />
+                )}
+                <span className="capitalize">
+                  {isProfit ? "Profit" : "Loss"}
+                </span>
+              </span>
+            </div>
+            <div
+              className={`col-span-2 font-bold ${
+                isProfit ? "text-emerald-600" : "text-red-600"
+              }`}
+            >
+              {t.amount}
+            </div>
+            <div className="col-span-2 text-gray-600">
+              {format(new Date(t.datetime), "dd MMM yyyy")}
+            </div>
+            <div className="col-span-1 text-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm("Delete this trade?")) deleteTrade(id);
+                }}
+                className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 transition"
+                title="Delete"
+              >
+                <FaTrash className="text-base" />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    },
+    [navigate, deleteTrade]
+  );
+
+  // render
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-6xl mx-auto mt-4">
         {/* Header */}
-<div className="relative mb-8">
-  <div
-    className="
-      flex flex-col md:flex-row md:items-center md:justify-between 
-      gap-6 p-6 
-      bg-white/70 backdrop-blur-xl 
-      rounded-2xl shadow-lg border border-gray-200
-    "
-  >
-    {/* Left Section — Icon + Title */}
-    <div className="flex items-center gap-4">
-      <div className="flex items-center justify-center h-16 w-16 rounded-xl bg-green-100 shadow-inner">
-        <MdShowChart className="text-green-600 text-3xl" />
-      </div>
+        <div className="relative mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 p-6 bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-200">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center h-16 w-16 rounded-xl bg-green-100 shadow-inner">
+                <MdShowChart className="text-green-600 text-3xl" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-800 tracking-tight">
+                  My Trades
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {user?.name ? `Welcome, ${user.name}` : "Your recent trades"}
+                </p>
+              </div>
+            </div>
 
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">
-          My Trades
-        </h1>
-        <p className="text-sm text-gray-500">
-          {user?.name ? `Welcome, ${user.name}` : "Your recent trades"}
-        </p>
-      </div>
-    </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/student/journal")}
+                className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-md transition"
+              >
+                <FaPlus className="text-sm" />
+                Add Trade
+              </button>
 
-    {/* Right Buttons */}
-    <div className="flex items-center gap-3">
-      <button
-        onClick={() => navigate("/student/journal")}
-        className="hidden sm:flex items-center gap-2 px-5 py-2.5 
-                   bg-green-600 hover:bg-green-700 text-white 
-                   rounded-xl shadow-md transition"
-      >
-        <FaPlus className="text-sm" />
-        Add Trade
-      </button>
+              <button
+                onClick={() => navigate("/student/journal")}
+                className="sm:hidden p-3 bg-green-600 text-white rounded-full shadow-md"
+              >
+                <FaPlus />
+              </button>
+            </div>
+          </div>
 
-      <button
-        onClick={() => navigate("/student/journal")}
-        className="sm:hidden p-3 bg-green-600 text-white rounded-full shadow-md"
-      >
-        <FaPlus />
-      </button>
-    </div>
-  </div>
+          {/* Stats bar */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
+              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                <MdShowChart className="text-blue-600 text-xl" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Total Trades
+                </p>
+                <p className="text-xl font-semibold text-gray-800">
+                  {trades.length}
+                </p>
+              </div>
+            </div>
 
-  {/* Stats Bar */}
-  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-    
-    {/* Total Trades */}
-    <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
-      <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-        <MdShowChart className="text-blue-600 text-xl" />
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Total Trades</p>
-        <p className="text-xl font-semibold text-gray-800">{trades.length}</p>
-      </div>
-    </div>
+            <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                Net P/L
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <FaArrowUp className="text-emerald-600 text-xl" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      Profit
+                    </p>
+                    <p className="text-xl font-semibold text-emerald-600">
+                      {totalProfit.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
+                </div>
 
-    {/* P/L */}
-    <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
-      <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-        <FaArrowUp className="text-emerald-600 text-xl" />
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Net P/L</p>
-        <p className={`text-xl font-semibold ${trades.reduce((a, b) => a + (Number(b.amount) || 0), 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-          {Number(
-  trades.reduce((a, b) => a + (Number(b.amount) || 0), 0)
-).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-red-50 flex items-center justify-center">
+                    <FaArrowDown className="text-red-600 text-xl" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      Loss
+                    </p>
+                    <p className="text-xl font-semibold text-red-600">
+                      {totalLoss.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        </p>
-      </div>
-    </div>
-
-    {/* Win Rate */}
-    <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
-      <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center">
-        <FaArrowUp className="text-purple-600 text-xl" />
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Win Rate</p>
-        <p className="text-xl font-semibold text-gray-800">
-          {(() => {
-            const wins = trades.filter((t) => Number(t.amount) > 0).length;
-            return trades.length === 0
-              ? "0%"
-              : `${Math.round((wins / trades.length) * 100)}%`;
-          })()}
-        </p>
-      </div>
-    </div>
-
-  </div>
-</div>
-
+            <div className="p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow border flex items-center gap-4">
+              <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                <FaArrowUp className="text-purple-600 text-xl" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Win Rate
+                </p>
+                <p className="text-xl font-semibold text-gray-800">
+                  {(() => {
+                    const wins = trades.filter(
+                      (t) => Number(t.amount) > 0
+                    ).length;
+                    return trades.length === 0
+                      ? "0%"
+                      : `${Math.round((wins / trades.length) * 100)}%`;
+                  })()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Filters + Search */}
         <div className="bg-white p-4 md:p-5 rounded-2xl shadow-md border border-gray-200 grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
@@ -373,7 +603,6 @@ const TradesList = () => {
             />
           </div>
 
-          {/* Search */}
           <div className="md:col-span-2 flex items-end">
             <div className="relative w-full">
               <label className="sr-only">Search trades</label>
@@ -383,17 +612,14 @@ const TradesList = () => {
               <input
                 placeholder="Search instrument, notes, price..."
                 className="w-full pl-10 pr-3 py-2 border rounded-lg bg-white text-sm"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
+                value={rawQuery}
+                onChange={(e) => setRawQuery(e.target.value)}
               />
             </div>
           </div>
         </div>
 
-        {/* Controls: Sort + PageSize */}
+        {/* Controls + Export */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <button
@@ -426,6 +652,38 @@ const TradesList = () => {
               <option value={50}>50</option>
             </select>
           </div>
+
+          <div className="relative" ref={exportRef}>
+            <button
+              onClick={() => setShowExport((p) => !p)}
+              className="px-3 py-2 bg-white border rounded-lg shadow-sm text-sm hover:bg-gray-50 flex items-center gap-2"
+            >
+              Export Trade Data <FaChevronDown className="text-xs" />
+            </button>
+
+            {showExport && (
+              <div className="absolute right-0 mt-2 w-40 bg-white shadow-lg border rounded-lg overflow-hidden z-20">
+                <button
+                  onClick={exportCSV}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                >
+                  CSV
+                </button>
+                <button
+                  onClick={exportExcel}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                >
+                  Excel
+                </button>
+                <button
+                  onClick={exportPDF}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+                >
+                  PDF
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Loading / Error / Empty */}
@@ -443,132 +701,38 @@ const TradesList = () => {
           </div>
         )}
 
-        {/* Desktop – Premium Card-Based Admin Table with animated rows */}
+        {/* Desktop virtualized table + Mobile cards */}
         {!loading && !error && filtered.length > 0 && (
           <>
+            {/* Desktop: virtualized list */}
             <div className="hidden md:block rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white">
-              <table className="w-full text-sm relative">
-                <thead>
-                  <tr className="bg-gray-100 border-b">
-                    <th className="py-3 px-0 w-2" /> {/* status bar col */}
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Instrument
-                    </th>
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Entry
-                    </th>
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Exit
-                    </th>
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Qty
-                    </th>
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Result
-                    </th>
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Amount
-                    </th>
-                    <th className="py-3 px-4 text-left font-semibold text-gray-700">
-                      Date
-                    </th>
-                    <th className="py-3 px-4 text-center font-semibold text-gray-700">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
+              {/* Header row (static) */}
+              <div className="grid grid-cols-12 gap-4 bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-700 items-center">
+                <div className="col-span-1" /> {/* status col placeholder */}
+                <div className="col-span-2">Instrument</div>
+                <div className="col-span-1">Entry</div>
+                <div className="col-span-1">Exit</div>
+                <div className="col-span-1">Qty</div>
+                <div className="col-span-2">Result</div>
+                <div className="col-span-2">Amount</div>
+                <div className="col-span-2">Date</div>
+                <div className="col-span-1 text-center">Actions</div>
+              </div>
 
-                <tbody>
-                  <AnimatePresence initial={false}>
-                    {paginated.map((t, idx) => {
-                      const id = t._id || t.id;
-                      const isProfit = Number(t.amount) >= 0;
-                      return (
-                        <motion.tr
-                          key={id}
-                          {...ROW_ANIM}
-                          layout
-                          onClick={() => openModal(t)}
-                          className={`transition cursor-pointer ${
-                            idx % 2 === 0 ? "bg-white" : "bg-gray-50"
-                          } hover:bg-green-50`}
-                        >
-                          {/* status colored bar */}
-                          <td className="py-3 px-0 align-middle">
-                            <div
-                              className={`h-10 w-1 rounded-r-md ${
-                                isProfit ? "bg-emerald-400" : "bg-red-400"
-                              }`}
-                            />
-                          </td>
-
-                          <td className="py-3 px-4 font-medium text-gray-800">
-                            {t.instrument}
-                          </td>
-
-                          <td className="py-3 px-4 text-gray-700">
-                            {t.entryPrice}
-                          </td>
-
-                          <td className="py-3 px-4 text-gray-700">
-                            {t.exitPrice}
-                          </td>
-
-                          <td className="py-3 px-4 text-gray-700">
-                            {t.quantity} {t.unit}
-                          </td>
-
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-lg ${
-                                isProfit
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-red-100 text-red-700"
-                              }`}
-                            >
-                              {isProfit ? (
-                                <FaArrowUp className="text-xs" />
-                              ) : (
-                                <FaArrowDown className="text-xs" />
-                              )}
-                              <span className="capitalize">{t.result}</span>
-                            </span>
-                          </td>
-
-                          <td
-                            className={`py-3 px-4 font-bold ${
-                              isProfit ? "text-emerald-600" : "text-red-600"
-                            }`}
-                          >
-                            {t.amount}
-                          </td>
-
-                          <td className="py-3 px-4 text-gray-600">
-                            {format(new Date(t.datetime), "dd MMM yyyy")}
-                          </td>
-
-                          <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm("Delete this trade?"))
-                                  deleteTrade(id);
-                              }}
-                              className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 transition"
-                              title="Delete"
-                            >
-                              <FaTrash className="text-base" />
-                            </button>
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </AnimatePresence>
-                </tbody>
-              </table>
+              {/* Virtualized list (renders filtered data but pagination still controls scroll) */}
+              <List
+                height={Math.min(ROW_HEIGHT * 10, ROW_HEIGHT * filtered.length)} // visible height (10 rows or less)
+                itemCount={filtered.length}
+                itemSize={ROW_HEIGHT}
+                width={"100%"}
+                itemData={filtered}
+                ref={listRef}
+              >
+                {Row}
+              </List>
             </div>
 
-            {/* Mobile Cards */}
+            {/* Mobile Cards (kept unchanged but optimized) */}
             <div className="md:hidden space-y-4">
               <AnimatePresence>
                 {paginated.map((t) => {
@@ -612,11 +776,17 @@ const TradesList = () => {
                             ) : (
                               <FaArrowDown className="text-xs" />
                             )}
-                            <span className="capitalize">{t.result}</span>
+                            <span className="capitalize">
+                              {isProfit ? "Profit" : "Loss"}
+                            </span>
                           </span>
 
                           <button
-                            onClick={() => openModal(t)}
+                            onClick={() =>
+                              navigate(`/student/trade-entries/${id}`, {
+                                state: { trade: t },
+                              })
+                            }
                             className="px-3 py-1 rounded-lg bg-gray-100 text-sm"
                           >
                             View
@@ -658,12 +828,15 @@ const TradesList = () => {
           </>
         )}
 
-        {/* Pagination controls */}
+        {/* Pagination controls (works with virtualized list by scrolling) */}
         {!loading && !error && filtered.length > 0 && (
           <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="text-sm text-gray-600">
               Showing{" "}
-              <span className="font-medium">{(page - 1) * pageSize + 1}</span> -{" "}
+              <span className="font-medium">
+                {Math.min((page - 1) * pageSize + 1, total)}
+              </span>{" "}
+              -{" "}
               <span className="font-medium">
                 {Math.min(page * pageSize, total)}
               </span>{" "}
@@ -680,17 +853,29 @@ const TradesList = () => {
               </button>
 
               <div className="hidden sm:flex items-center gap-1">
-                {pageWindow().map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`px-3 py-1 rounded ${
-                      p === page ? "bg-green-600 text-white" : "border bg-white"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
+                {Array.from({ length: Math.min(7, totalPages) }).map((_, i) => {
+                  // page window centered
+                  const half = Math.floor(7 / 2);
+                  const start = Math.max(
+                    1,
+                    Math.min(totalPages - 6, page - half)
+                  );
+                  const pNum = start + i;
+                  if (pNum > totalPages) return null;
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => setPage(pNum)}
+                      className={`px-3 py-1 rounded ${
+                        pNum === page
+                          ? "bg-green-600 text-white"
+                          : "border bg-white"
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
               </div>
 
               <button
@@ -703,113 +888,7 @@ const TradesList = () => {
             </div>
           </div>
         )}
-
-        {/* Modal (Improved Premium UI) */}
-        <AnimatePresence>
-          {modalOpen && selectedTrade && (
-            <motion.div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                initial={{ scale: 0.95, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.95, y: 20 }}
-                className="max-w-lg w-full bg-white rounded-2xl shadow-2xl border p-6 relative"
-              >
-                <button
-                  onClick={closeModal}
-                  className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-                >
-                  <FaTimes />
-                </button>
-
-                <h2 className="text-2xl font-bold mb-1">
-                  {selectedTrade.instrument}
-                </h2>
-                <p className="text-xs text-gray-500 mb-4">
-                  {format(
-                    new Date(selectedTrade.datetime),
-                    "dd MMM yyyy, hh:mm a"
-                  )}
-                </p>
-
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-700 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-500">Entry Price</p>
-                    <p className="font-medium">{selectedTrade.entryPrice}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500">Exit Price</p>
-                    <p className="font-medium">{selectedTrade.exitPrice}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500">Quantity</p>
-                    <p className="font-medium">
-                      {selectedTrade.quantity} {selectedTrade.unit}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500">Result</p>
-                    <p
-                      className={`font-medium ${
-                        selectedTrade.amount >= 0
-                          ? "text-emerald-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {selectedTrade.result} — {selectedTrade.amount}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <p className="text-xs text-gray-500">Description</p>
-                  <div className="mt-2 p-3 bg-gray-50 rounded-xl">
-                    {selectedTrade.description || "No notes"}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => {
-                      const id = selectedTrade._id || selectedTrade.id;
-                      if (confirm("Delete this trade?")) deleteTrade(id);
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700"
-                  >
-                    {deletingId === (selectedTrade._id || selectedTrade.id)
-                      ? "Deleting..."
-                      : "Delete"}
-                  </button>
-                  <button
-                    onClick={closeModal}
-                    className="px-4 py-2 border rounded-xl hover:bg-gray-50"
-                  >
-                    Close
-                  </button>
-                </div>
-              </motion.div>
-
-              {/* Backdrop */}
-              <motion.div
-                onClick={closeModal}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.45 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/50"
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );
-};
-
-export default TradesList;
+}

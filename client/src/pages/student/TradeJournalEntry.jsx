@@ -261,14 +261,15 @@ export default function TradeJournalEntry() {
       toast.error("You must be logged in to save a trade.");
       return;
     }
-
+    const autoAmount = Number(estimatedPnL());
+    const autoResult = autoAmount >= 0 ? "profit" : "loss";
     const fd = new FormData();
     fd.append("studentId", user.id);
     fd.append("instrument", form.instrument);
     fd.append("entryPrice", form.entryPrice);
     fd.append("exitPrice", form.exitPrice);
-    fd.append("result", form.result);
-    fd.append("amount", form.amount);
+    fd.append("amount", autoAmount);
+    fd.append("result", autoResult);
     fd.append("quantity", finalQuantity);
     fd.append("unit", unit);
     fd.append("description", form.description || "");
@@ -501,41 +502,31 @@ export default function TradeJournalEntry() {
 
               {/* Result + Amount */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">Result</div>
-                  <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        {...register("result")}
-                        value="profit"
-                        defaultChecked
-                      />{" "}
-                      Profit
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        {...register("result")}
-                        value="loss"
-                      />{" "}
-                      Loss
-                    </label>
-                  </div>
-                </div>
-
-                <Field
-                  label="Amount"
-                  hint="Editable: amount won't be overwritten by the app."
-                >
+                {/* Auto Result (no radio buttons needed) */}
+                <Field label="Result (Auto)">
                   <input
-                    placeholder=" "
-                    type="number"
-                    step="0.01"
-                    {...register("amount")}
-                    onKeyDown={blockMinus}
-                    onPaste={blockPasteNegative}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-900"
+                    type="text"
+                    value={
+                      estimatedPnL() !== null
+                        ? Number(estimatedPnL()) >= 0
+                          ? "Profit"
+                          : "Loss"
+                        : ""
+                    }
+                    readOnly
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium"
+                  />
+                </Field>
+
+                {/* Auto Calculated Amount */}
+                <Field label="Amount (Auto Calculated)">
+                  <input
+                    type="text"
+                    value={estimatedPnL() ?? ""}
+                    readOnly
+                    className={`w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium
+        ${estimatedPnL() >= 0 ? "text-emerald-600" : "text-red-600"}
+      `}
                   />
                 </Field>
               </div>
