@@ -10,6 +10,7 @@ export const createTradeEntry = async (req, res) => {
       result,
       amount,
       quantity,
+      tradeType,
       unit,
       description,
       datetime,
@@ -24,6 +25,7 @@ export const createTradeEntry = async (req, res) => {
       !result ||
       !amount ||
       !quantity ||
+      !tradeType ||
       !unit ||
       !datetime
     ) {
@@ -46,6 +48,7 @@ export const createTradeEntry = async (req, res) => {
       result,
       amount,
       quantity,
+      tradeType,
       unit,
       description,
       datetime,

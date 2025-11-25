@@ -332,6 +332,7 @@ export default function TradesList() {
   };
 
   // Virtualized row renderer (desktop)
+    // Virtualized row renderer (desktop)
   const Row = useCallback(
     ({ index, style, data }) => {
       // data = filtered array
@@ -339,6 +340,9 @@ export default function TradesList() {
       if (!t) return null;
       const id = t._id || t.id;
       const isProfit = Number(t.amount) >= 0;
+
+      const isBuy = t.tradeType === "buy";
+      const isSell = t.tradeType === "sell";
 
       return (
         <div
@@ -357,15 +361,32 @@ export default function TradesList() {
             className="w-1 h-14 rounded-r-md"
             style={{ backgroundColor: isProfit ? "#34d399" : "#fb7185" }}
           />
+
           <div className="flex-1 py-4 grid grid-cols-12 gap-4 items-center">
-            <div className="col-span-2 font-medium text-gray-800">
+            
+            {/* Instrument + Trade Type Badge */}
+            <div className="col-span-2 flex items-center gap-2 font-medium text-gray-800">
               {t.instrument}
+
+              {/* BUY / SELL rectangular badge */}
+              <span
+                className={`
+                  px-2 py-0.5 text-xs font-semibold border rounded-md
+                  ${isBuy ? "text-green-700 bg-green-50 border-green-300" : ""}
+                  ${isSell ? "text-red-700 bg-red-50 border-red-300" : ""}
+                `}
+              >
+                {t.tradeType?.toUpperCase()}
+              </span>
             </div>
+
             <div className="col-span-1 text-gray-700">{t.entryPrice}</div>
             <div className="col-span-1 text-gray-700">{t.exitPrice}</div>
+
             <div className="col-span-1 text-gray-700">
               {t.quantity} {t.unit}
             </div>
+
             <div className="col-span-2">
               <span
                 className={`inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-lg ${
@@ -384,6 +405,7 @@ export default function TradesList() {
                 </span>
               </span>
             </div>
+
             <div
               className={`col-span-2 font-bold ${
                 isProfit ? "text-emerald-600" : "text-red-600"
@@ -391,9 +413,11 @@ export default function TradesList() {
             >
               {t.amount}
             </div>
+
             <div className="col-span-2 text-gray-600">
               {format(new Date(t.datetime), "dd MMM yyyy")}
             </div>
+
             <div className="col-span-1 text-center">
               <button
                 onClick={(e) => {
@@ -412,6 +436,7 @@ export default function TradesList() {
     },
     [navigate, deleteTrade]
   );
+
 
   // render
   return (

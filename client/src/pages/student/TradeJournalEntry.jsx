@@ -181,6 +181,7 @@ export default function TradeJournalEntry() {
       entryPrice: "",
       exitPrice: "",
       quantity: quantity,
+      unit: unit,
       result: "profit",
       amount: "",
       description: "",
@@ -202,6 +203,13 @@ export default function TradeJournalEntry() {
   useEffect(() => {
     setValue("quantity", quantity);
   }, [quantity, setValue]);
+
+  // ENSURE tradeType ALWAYS added to RHF state
+  useEffect(() => {
+    if (!watchedTradeType) {
+      setValue("tradeType", "buy");
+    }
+  }, [watchedTradeType, setValue]);
 
   /* Preview Cleanup */
   useEffect(() => {
@@ -249,8 +257,8 @@ export default function TradeJournalEntry() {
       toast.error("You must be logged in.");
       return;
     }
-
     const fd = new FormData();
+    console.log("TRADE TYPE BEFORE SUBMIT:", form.tradeType);
     fd.append("studentId", user.id);
     fd.append("instrument", form.instrument);
     fd.append("tradeType", form.tradeType);
@@ -425,13 +433,19 @@ export default function TradeJournalEntry() {
               <Field label="Trade Type">
                 <div className="flex gap-6">
                   <label className="flex items-center gap-2">
-                    <input type="radio" value="buy" {...register("tradeType")} />
+                    <input
+                      type="radio"
+                      name="tradeType"
+                      value="buy"
+                      {...register("tradeType")}
+                    />
                     Buy
                   </label>
 
                   <label className="flex items-center gap-2">
                     <input
                       type="radio"
+                      name="tradeType"
                       value="sell"
                       {...register("tradeType")}
                     />
@@ -448,7 +462,11 @@ export default function TradeJournalEntry() {
                   quantity={quantity}
                   setQuantity={setQuantity}
                 />
-                <input type="hidden" {...register("quantity")} value={quantity} />
+                <input
+                  type="hidden"
+                  {...register("quantity")}
+                  value={quantity}
+                />
               </div>
 
               {/* AUTO RESULT + MANUAL AMOUNT */}

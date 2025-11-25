@@ -46,6 +46,12 @@ const tradeJournalSchema = new mongoose.Schema(
       required: true,
     },
 
+    tradeType: {
+      type: String,
+      enum: ["buy", "sell"],
+      required: true,
+    },
+
     description: {
       type: String,
       default: "",
