@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { ToastContainer } from "react-toastify"
-import "react-toastify/dist/ReactToastify.css"
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { useEffect, useState } from "react";
 import TradingTrendLoader from "./components/ui/ProTradingLoader.jsx";
 import Login from "./pages/auth/Login.jsx";
@@ -28,11 +28,14 @@ import AdminDetails from "./pages/admin/AdminDetails.jsx";
 import Messages from "./pages/student/MessagesSidebar.jsx";
 import LiveSessions from "./pages/student/LiveSessions.jsx";
 import AdminMessages from "./pages/admin/AdminMessages.jsx";
-import TradeJournalEntry from "./pages/student/TradeJournalEntry.jsx";  
-import AdminProfile from "./pages/admin/AdminProfile.jsx"
+import TradeJournalEntry from "./pages/student/TradeJournalEntry.jsx";
+import AdminProfile from "./pages/admin/AdminProfile.jsx";
 import TradesList from "./pages/student/TradesList.jsx";
 import TradeDetails from "./pages/student/TradeDetails.jsx";
-import ScrollToTop from './components/ScrollToTop.jsx'
+import ScrollToTop from "./components/ScrollToTop.jsx";
+import VideoList from "./pages/student/VideoList.jsx";
+import VideoPlayer from "./pages/student/VideoPlayer.jsx";
+import AddVideo from "./pages/admin/AddVideo.jsx";
 // import ScreenProtector from './components/ScreenProtector.jsx'
 
 export default function App() {
@@ -53,7 +56,7 @@ export default function App() {
   }
   return (
     <>
-    <ScrollToTop />
+      <ScrollToTop />
       {/* <ScreenProtector /> */}
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
@@ -74,7 +77,12 @@ export default function App() {
             <Route path="/student/live-sessions" element={<LiveSessions />} />
             <Route path="/student/journal" element={<TradeJournalEntry />} />
             <Route path="/student/trade-entries" element={<TradesList />} />
-            <Route path="/student/trade-entries/:id" element={<TradeDetails />} />
+            <Route
+              path="/student/trade-entries/:id"
+              element={<TradeDetails />}
+            />
+            <Route path="/videos" element={<VideoList />} />
+            <Route path="/videos/:id" element={<VideoPlayer />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
           </Route>
         </Route>
@@ -93,6 +101,7 @@ export default function App() {
             <Route path="/admin/add-student" element={<AddStudent />} />
             <Route path="/admin/students/:id" element={<AddStudent />} />
             <Route path="/admin/analytics" element={<Analytics />} />
+            <Route path="/admin/videos" element={<AddVideo />} />
             <Route
               path="/admin/live-sessions"
               element={<CourseLiveSessions />}

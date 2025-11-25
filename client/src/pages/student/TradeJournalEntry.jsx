@@ -1,6 +1,6 @@
 // TradeJournalEntry.jsx
-import React, { useEffect, useCallback } from "react";
-import { useState } from "react";
+
+import React, { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -12,10 +12,7 @@ import { toast } from "react-toastify";
 import { FaCheckCircle } from "react-icons/fa";
 import { GiGoldBar } from "react-icons/gi";
 import { HiArrowLeft } from "react-icons/hi";
-/**
- * Local preview image.
- * Developer note: this is the local path you uploaded earlier.
- */
+
 const INSTRUMENTS = ["Gold", "Bitcoin", "Ethereum", "Crude Oil"];
 
 const containerAnim = {
@@ -23,17 +20,19 @@ const containerAnim = {
   show: { opacity: 1, y: 0, transition: { staggerChildren: 0.02 } },
 };
 
-/* ------------------------------
-   Memoized small components
-   ------------------------------ */
-const Field = React.memo(({ label, children, hint }) => (
+/* ------------------------------ */
+/* Field Component */
+/* ------------------------------ */
+const Field = React.memo(({ label, children }) => (
   <div className="w-full">
     <div className="text-xs text-gray-500 mb-2">{label}</div>
     {children}
-    {hint && <div className="text-xs text-gray-400 mt-1">{hint}</div>}
   </div>
 ));
 
+/* ------------------------------ */
+/* QUANTITY SELECTOR */
+/* ------------------------------ */
 const QuantitySelector = React.memo(
   ({ unit, setUnit, quantity, setQuantity }) => {
     const step = unit === "ounce" ? 1 : 0.01;
@@ -43,8 +42,9 @@ const QuantitySelector = React.memo(
 
       if (unit === "ounce") {
         val = val.replace(/\D/g, "");
-        if (val === "") val = "1";
+        if (!val) val = "1";
       }
+
       if (unit === "lots") {
         val = val.replace(/[^0-9.]/g, "");
         if (val.includes(".")) {
@@ -59,9 +59,7 @@ const QuantitySelector = React.memo(
     const increment = () => {
       setQuantity((q) => {
         let next = parseFloat(q) + step;
-
         if (unit === "lots") next = next.toFixed(2);
-
         return String(next);
       });
     };
@@ -69,11 +67,8 @@ const QuantitySelector = React.memo(
     const decrement = () => {
       setQuantity((q) => {
         let next = parseFloat(q) - step;
-
         if (next < 0) next = 0;
-
         if (unit === "lots") next = next.toFixed(2);
-
         return String(next);
       });
     };
@@ -83,14 +78,10 @@ const QuantitySelector = React.memo(
 
       setQuantity((q) => {
         const num = parseFloat(q || "0");
-
         if (newUnit === "ounce") {
-          // convert lots → ounces
           return String(Math.max(1, Math.round(num * 100)));
         }
-
         if (newUnit === "lots") {
-          // convert ounces → lots (must always be multiple of 0.01)
           return (num * 0.01).toFixed(2);
         }
       });
@@ -102,17 +93,14 @@ const QuantitySelector = React.memo(
           Quantity
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all duration-150 hover:shadow-md">
-          {/* Toggle */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          {/* Unit Switch */}
           <div className="flex bg-gray-50 p-1 rounded-lg border border-gray-200 mb-4">
             <button
               type="button"
               onClick={() => handleUnitSwitch("ounce")}
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
-                unit === "ounce"
-                  ? "bg-green-600 text-white shadow-sm"
-                  : "text-gray-600"
+              className={`flex-1 py-2 rounded-md text-sm font-medium ${
+                unit === "ounce" ? "bg-green-600 text-white" : "text-gray-600"
               }`}
             >
               Troy Ounce
@@ -121,24 +109,22 @@ const QuantitySelector = React.memo(
             <button
               type="button"
               onClick={() => handleUnitSwitch("lots")}
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
-                unit === "lots"
-                  ? "bg-green-600 text-white shadow-sm"
-                  : "text-gray-600"
+              className={`flex-1 py-2 rounded-md text-sm font-medium ${
+                unit === "lots" ? "bg-green-600 text-white" : "text-gray-600"
               }`}
             >
               Lots
             </button>
           </div>
 
-          {/* Input + + / – */}
+          {/* Quantity Controls */}
           <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-3 py-3">
             <div className="flex items-center gap-2">
               <span className="text-gray-500 text-sm font-medium">Qty</span>
               <input
                 value={quantity}
                 onChange={handleManual}
-                className="w-24 px-2 py-1 border border-gray-200 rounded-md text-gray-900 text-sm focus:outline-none focus:border-gray-900 transition"
+                className="w-24 px-2 py-1 border border-gray-200 rounded-md text-gray-900 text-sm focus:outline-none"
               />
             </div>
 
@@ -146,7 +132,7 @@ const QuantitySelector = React.memo(
               <button
                 type="button"
                 onClick={increment}
-                className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-700 font-bold hover:bg-gray-50"
+                className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300"
               >
                 +
               </button>
@@ -154,7 +140,7 @@ const QuantitySelector = React.memo(
               <button
                 type="button"
                 onClick={decrement}
-                className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300 text-gray-700 font-bold hover:bg-gray-50"
+                className="w-8 h-8 flex items-center justify-center rounded-md border border-gray-300"
               >
                 –
               </button>
@@ -166,9 +152,9 @@ const QuantitySelector = React.memo(
   }
 );
 
-/* ------------------------------
-   Main Component
-   ------------------------------ */
+/* ------------------------------ */
+/* MAIN COMPONENT */
+/* ------------------------------ */
 export default function TradeJournalEntry() {
   const navigate = useNavigate();
   const { user } = useSelector((s) => s.auth || {});
@@ -177,11 +163,9 @@ export default function TradeJournalEntry() {
   const [preview, setPreview] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // quantity and unit are local UI states (string for stable formatting)
   const [unit, setUnit] = useState("ounce");
-  const [quantity, setQuantity] = useState("1"); // default 1 ounce
+  const [quantity, setQuantity] = useState("1");
 
-  // react-hook-form setup
   const {
     register,
     handleSubmit,
@@ -189,62 +173,65 @@ export default function TradeJournalEntry() {
     setValue,
     control,
     formState: { isSubmitting },
+    watch,
   } = useForm({
     defaultValues: {
       instrument: "Gold",
+      tradeType: "buy",
       entryPrice: "",
       exitPrice: "",
+      quantity: quantity,
       result: "profit",
       amount: "",
-      quantity: quantity,
       description: "",
       datetime: formatISO(new Date(), { representation: "complete" }).slice(
         0,
         16
       ),
     },
-    mode: "onTouched",
   });
 
-  // useWatch selectively (avoids re-rendering entire form on each keystroke)
+  /* Watching Inputs */
   const watchedInstrument = useWatch({ control, name: "instrument" });
   const watchedEntry = useWatch({ control, name: "entryPrice" });
   const watchedExit = useWatch({ control, name: "exitPrice" });
-  const watchedResult = useWatch({ control, name: "result" });
+  const watchedTradeType = useWatch({ control, name: "tradeType" });
   const watchedDescription = useWatch({ control, name: "description" });
 
-  // Sync quantity to react-hook-form hidden field
+  /* Sync quantity to form */
   useEffect(() => {
     setValue("quantity", quantity);
   }, [quantity, setValue]);
 
-  // cleanup preview URL
+  /* Preview Cleanup */
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
 
-  const GOLD_MULTIPLIER = 100; // your multiplier
+  /* ------------------------------ */
+  /* AUTO RESULT PROFIT OR LOSS */
+  /* ------------------------------ */
+  useEffect(() => {
+    const entry = parseFloat(watchedEntry);
+    const exit = parseFloat(watchedExit);
+    const type = watchedTradeType;
 
-  const estimatedPnL = useCallback(() => {
-    const e = parseFloat(watchedEntry);
-    const x = parseFloat(watchedExit);
-    const q = parseFloat(quantity);
+    if (isNaN(entry) || isNaN(exit) || !type) return;
 
-    if (isNaN(e) || isNaN(x) || isNaN(q)) return null;
+    let isProfit = false;
 
-    const diff = x - e; // price difference
+    if (type === "buy") {
+      isProfit = exit > entry;
+    } else if (type === "sell") {
+      isProfit = exit < entry;
+    }
 
-    // IMPORTANT FIX:
-    const effectiveLots =
-      unit === "ounce"
-        ? q * 0.01 // convert ounce → lots
-        : q; // already lots
+    setValue("result", isProfit ? "profit" : "loss");
+  }, [watchedEntry, watchedExit, watchedTradeType, setValue]);
 
-    return (diff * GOLD_MULTIPLIER * effectiveLots).toFixed(2);
-  }, [watchedEntry, watchedExit, quantity, unit]);
-
+  /* File Upload */
   const handleScreenshot = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -254,23 +241,24 @@ export default function TradeJournalEntry() {
     }
   };
 
+  /* ------------------------------ */
+  /* Submit Handler */
+  /* ------------------------------ */
   const onSubmit = async (form) => {
-    const finalQuantity = quantity ?? form.quantity ?? "0";
-
     if (!user?.id) {
-      toast.error("You must be logged in to save a trade.");
+      toast.error("You must be logged in.");
       return;
     }
-    const autoAmount = Number(estimatedPnL());
-    const autoResult = autoAmount >= 0 ? "profit" : "loss";
+
     const fd = new FormData();
     fd.append("studentId", user.id);
     fd.append("instrument", form.instrument);
+    fd.append("tradeType", form.tradeType);
     fd.append("entryPrice", form.entryPrice);
     fd.append("exitPrice", form.exitPrice);
-    fd.append("amount", autoAmount);
-    fd.append("result", autoResult);
-    fd.append("quantity", finalQuantity);
+    fd.append("result", form.result);
+    fd.append("amount", form.amount);
+    fd.append("quantity", quantity);
     fd.append("unit", unit);
     fd.append("description", form.description || "");
     fd.append("datetime", form.datetime);
@@ -279,6 +267,7 @@ export default function TradeJournalEntry() {
       toast.error("Screenshot is required");
       return;
     }
+
     fd.append("screenshot", screenshot);
 
     try {
@@ -287,7 +276,7 @@ export default function TradeJournalEntry() {
       });
 
       setShowSuccess(true);
-      toast.success("Trade entry saved successfully!");
+      toast.success("Trade entry saved!");
 
       setTimeout(() => {
         setShowSuccess(false);
@@ -297,41 +286,41 @@ export default function TradeJournalEntry() {
         setScreenshot(null);
         setPreview(null);
         navigate("/student/trade-entries");
-      }, 1000);
+      }, 800);
     } catch (err) {
-      console.error(err);
-      toast.error(err?.response?.data?.message || "Failed to save trade entry");
+      toast.error(err?.response?.data?.message || "Failed to save.");
     }
   };
 
-  // prevent invalid characters in numeric fields
   const blockMinus = (e) => {
     if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
   };
-  const blockPasteNegative = (e) => {
-    const paste = (e.clipboardData || window.clipboardData).getData("text");
-    if (["-", "+", "e"].some((c) => paste.includes(c))) e.preventDefault();
-  };
+
+  /* ------------------------------ */
+  /* RENDER UI */
+  /* ------------------------------ */
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7fafc_0%,#ffffff_100%)] py-10 px-4">
+    <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-6xl mx-auto">
         <button
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 text-slate-600 hover:text-primary-600 transition-colors m-4"
+          className="inline-flex items-center gap-2 text-slate-600 hover:text-primary-600 m-4"
         >
-          <HiArrowLeft className="w-5 h-5" />
-          Back
+          <HiArrowLeft className="w-5 h-5" /> Back
         </button>
+
         <motion.div
           initial="hidden"
           animate="show"
           variants={containerAnim}
-          className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-8"
         >
-          {/* Summary - reads only a few fields (via useWatch) */}
+          {/* ----------------------------------------- */}
+          {/* SUMMARY CARD */}
+          {/* ----------------------------------------- */}
           <motion.aside
-            className="lg:col-span-3 col-span-1 bg-white rounded-2xl p-6 shadow-sm border border-gray-100 sticky top-8"
+            className="lg:col-span-3 bg-white rounded-2xl p-6 shadow border sticky top-8"
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
           >
@@ -340,55 +329,22 @@ export default function TradeJournalEntry() {
                 <GiGoldBar className="text-2xl text-gray-800" />
               </div>
               <div>
-                <div className="text-sm text-gray-500">Trade journal</div>
+                <div className="text-sm text-gray-500">Trade Journal</div>
                 <div className="text-lg font-semibold text-gray-900">
-                  Quick summary
+                  Summary
                 </div>
               </div>
             </div>
 
             <div className="mt-6 text-sm text-gray-700 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Instrument</span>
-                <span className="font-medium">{watchedInstrument || "—"}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-gray-500">Entry</span>
-                <span className="font-medium">{watchedEntry || "—"}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-gray-500">Exit</span>
-                <span className="font-medium">{watchedExit || "—"}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-gray-500">Quantity</span>
-                <span className="font-medium">
-                  {quantity} {unit}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500">Estimated P&L</span>
-                <span
-                  className={`font-semibold ${
-                    estimatedPnL() && Number(estimatedPnL()) >= 0
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {estimatedPnL() ?? "—"}
-                </span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-gray-500">Result</span>
-                <span className="font-medium capitalize">
-                  {watchedResult || "—"}
-                </span>
-              </div>
+              <Summary label="Instrument" value={watchedInstrument} />
+              <Summary label="Entry" value={watchedEntry} />
+              <Summary label="Exit" value={watchedExit} />
+              <Summary
+                label="Type"
+                value={watchedTradeType ? watchedTradeType.toUpperCase() : "—"}
+              />
+              <Summary label="Quantity" value={`${quantity} ${unit}`} />
 
               <div>
                 <div className="text-xs text-gray-500 mt-2">Notes</div>
@@ -398,93 +354,93 @@ export default function TradeJournalEntry() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <div className="text-xs text-gray-500">Student</div>
-              <div className="text-sm font-medium text-gray-900">
-                {user?.name || user?.studentId || "—"}
-              </div>
-            </div>
-
+            {/* Screenshot preview */}
             <div className="mt-6">
               <div className="text-xs text-gray-500">Preview</div>
               {preview ? (
                 <img
                   src={preview}
                   alt="preview"
-                  className="h-20 w-32 object-cover rounded-md border border-gray-100"
+                  className="h-20 w-32 object-cover rounded-md border mt-2"
                 />
               ) : (
-                <div className="h-20 w-32 rounded-md border border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400">
+                <div className="h-20 w-32 border rounded-md border-dashed text-xs text-gray-400 flex items-center justify-center mt-2">
                   No file
                 </div>
               )}
             </div>
           </motion.aside>
 
-          {/* Form */}
+          {/* ----------------------------------------- */}
+          {/* FORM */}
+          {/* ----------------------------------------- */}
           <motion.main
-            className="lg:col-span-9 col-span-1 bg-white rounded-2xl p-8 shadow-sm border border-gray-100"
+            className="lg:col-span-9 bg-white rounded-2xl p-8 shadow border"
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-900">
-                  Trade Journal Entry
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  Record a trade with notes and screenshot
-                </p>
-              </div>
-            </div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Trade Journal Entry
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Record a trade with notes and screenshot
+            </p>
 
-            <form
-              onSubmit={handleSubmit(onSubmit)}
-              className="mt-6 grid grid-cols-1 gap-6"
-            >
-              {/* Row: Instrument / Entry / Exit */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-6 grid gap-6">
+              {/* Instrument / Entry / Exit */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Field label="Instrument">
                   <select
                     {...register("instrument")}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-900"
+                    className="w-full bg-white border rounded-lg px-3 py-2"
                   >
                     {INSTRUMENTS.map((ins) => (
-                      <option key={ins} value={ins}>
-                        {ins}
-                      </option>
+                      <option key={ins}>{ins}</option>
                     ))}
                   </select>
                 </Field>
 
                 <Field label="Entry Price">
                   <input
-                    placeholder=" "
                     type="number"
                     step="0.01"
-                    min="0"
                     {...register("entryPrice")}
                     onKeyDown={blockMinus}
-                    onPaste={blockPasteNegative}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-900"
+                    className="w-full bg-white border rounded-lg px-3 py-2"
                   />
                 </Field>
 
                 <Field label="Exit Price">
                   <input
-                    placeholder=" "
                     type="number"
                     step="0.01"
-                    min="0"
                     {...register("exitPrice")}
                     onKeyDown={blockMinus}
-                    onPaste={blockPasteNegative}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-900"
+                    className="w-full bg-white border rounded-lg px-3 py-2"
                   />
                 </Field>
               </div>
 
-              {/* Quantity selector - white style to match form */}
+              {/* BUY / SELL */}
+              <Field label="Trade Type">
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" value="buy" {...register("tradeType")} />
+                    Buy
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      value="sell"
+                      {...register("tradeType")}
+                    />
+                    Sell
+                  </label>
+                </div>
+              </Field>
+
+              {/* Quantity Selector */}
               <div>
                 <QuantitySelector
                   unit={unit}
@@ -492,62 +448,49 @@ export default function TradeJournalEntry() {
                   quantity={quantity}
                   setQuantity={setQuantity}
                 />
-                {/* Hidden form field to keep react-hook-form aware of quantity */}
-                <input
-                  {...register("quantity")}
-                  type="hidden"
-                  value={quantity}
-                />
+                <input type="hidden" {...register("quantity")} value={quantity} />
               </div>
 
-              {/* Result + Amount */}
+              {/* AUTO RESULT + MANUAL AMOUNT */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Auto Result (no radio buttons needed) */}
+                {/* AUTO RESULT */}
                 <Field label="Result (Auto)">
                   <input
                     type="text"
-                    value={
-                      estimatedPnL() !== null
-                        ? Number(estimatedPnL()) >= 0
-                          ? "Profit"
-                          : "Loss"
-                        : ""
-                    }
+                    value={watch("result") === "profit" ? "Profit" : "Loss"}
                     readOnly
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium"
+                    className="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium"
                   />
+                  <input type="hidden" {...register("result")} />
                 </Field>
 
-                {/* Auto Calculated Amount */}
-                <Field label="Amount (Auto Calculated)">
+                {/* AMOUNT */}
+                <Field label="Amount">
                   <input
-                    type="text"
-                    value={estimatedPnL() ?? ""}
-                    readOnly
-                    className={`w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium
-        ${estimatedPnL() >= 0 ? "text-emerald-600" : "text-red-600"}
-      `}
+                    type="number"
+                    step="0.01"
+                    {...register("amount")}
+                    placeholder="Enter P/L amount"
+                    className="w-full bg-white border rounded-lg px-3 py-2"
                   />
                 </Field>
               </div>
 
-              {/* Date & Description */}
+              {/* Date + Description */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field label="Date & Time">
                   <input
-                    placeholder=" "
                     type="datetime-local"
                     {...register("datetime")}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-900"
+                    className="w-full bg-white border rounded-lg px-3 py-2"
                   />
                 </Field>
 
-                <Field label="Description (optional)">
+                <Field label="Description (Optional)">
                   <textarea
-                    placeholder=" "
                     rows={4}
                     {...register("description")}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-900"
+                    className="w-full bg-white border rounded-lg px-3 py-2"
                   />
                 </Field>
               </div>
@@ -555,7 +498,7 @@ export default function TradeJournalEntry() {
               {/* Screenshot */}
               <div>
                 <div className="text-xs text-gray-500 mb-2">
-                  Screenshot (required)
+                  Screenshot (Required)
                 </div>
                 <div className="flex items-center gap-4">
                   <input
@@ -567,24 +510,18 @@ export default function TradeJournalEntry() {
                   {preview ? (
                     <img
                       src={preview}
-                      alt="preview"
-                      className="h-20 w-32 object-cover rounded-md border border-gray-100"
+                      className="h-20 w-32 object-cover rounded-md border"
                     />
                   ) : (
-                    <div className="h-20 w-32 rounded-md border border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400">
+                    <div className="h-20 w-32 rounded-md border border-dashed text-xs text-gray-400 flex items-center justify-center">
                       No file
                     </div>
                   )}
                 </div>
-                {!screenshot && (
-                  <div className="text-xs text-red-600 mt-2">
-                    * Screenshot is mandatory
-                  </div>
-                )}
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+              {/* Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
                   onClick={() => {
@@ -594,36 +531,47 @@ export default function TradeJournalEntry() {
                     setPreview(null);
                     setScreenshot(null);
                   }}
-                  className="px-5 py-2 rounded-md bg-white border border-gray-200 text-sm"
+                  className="px-5 py-2 rounded-md bg-white border border-gray-200"
                 >
                   Clear
                 </button>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 rounded-md bg-gray-900 text-white text-sm"
+                  className="px-5 py-2 rounded-md bg-gray-900 text-white"
                 >
                   {isSubmitting ? "Saving..." : "Save Entry"}
                 </button>
               </div>
             </form>
 
-            {/* success */}
+            {/* Success Toast */}
             {showSuccess && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="fixed right-6 bottom-6 bg-white border border-gray-100 rounded-xl p-3 shadow"
+                className="fixed right-6 bottom-6 bg-white border rounded-xl p-3 shadow flex items-center gap-2"
               >
                 <FaCheckCircle className="text-emerald-500" />
-                <div className="ml-2 text-sm">
-                  Saved — Your trade entry was saved
-                </div>
+                <span className="text-sm">Trade saved successfully!</span>
               </motion.div>
             )}
           </motion.main>
         </motion.div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------ */
+/* Summary Row Component */
+/* ------------------------------ */
+function Summary({ label, value }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium">{value || "—"}</span>
     </div>
   );
 }

@@ -22,6 +22,7 @@ import forgotPasswordRoutes from "./routes/forgotPassword.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import liveSessionsRouter from "./routes/LiveSessions.routes.js";
 import tradeJournalRoutes from "./routes/tradeJournal.routes.js";
+import videoRoutes from "./routes/video.routes.js";
 
 const app = express();
 
@@ -164,6 +165,7 @@ app.use("/api/livesessions", liveSessionsRouter);
 app.use("/api/messages", messageRoutes);
 app.use("/api/manage-admins", adminManagementRoutes);
 app.use("/api/journals/trade", tradeJournalRoutes);
+app.use("/api/videos", videoRoutes);
 
 /* ============================================================
    🧩 SOCKET.IO SUPPORT HOOK (ADDED)
